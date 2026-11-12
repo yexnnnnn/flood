@@ -1,0 +1,381 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>看见什么，就升到哪一级 · 村庄自然征兆预警原型</title>
+<style>
+@property --mid  { syntax: '<color>'; inherits: true; initial-value: #9b93bd; }
+@property --halo { syntax: '<color>'; inherits: true; initial-value: #d4cfe6; }
+@property --core { syntax: '<color>'; inherits: true; initial-value: #f6f4fb; }
+:root {
+  --paper: #f5f3ef; --ink: #161514; --ink2: rgba(22,21,20,.62); --ink3: rgba(22,21,20,.38); --line: rgba(22,21,20,.14);
+  --l1: #2f6bff; --l2: #ffcc00; --l3: #ff5a0a; --l4: #ff1450; --l2t: #c99a00;
+  --sans: 'PingFang SC', 'Noto Sans SC', 'Source Han Sans SC', 'Helvetica Neue', Arial, sans-serif;
+  --mono: 'JetBrains Mono', 'SF Mono', ui-monospace, Menlo, Consolas, monospace;
+  --u: min(1vw, 1.78vh);   /* layout unit: keeps a 16:9 stage proportional */
+}
+* { box-sizing: border-box }
+html, body { margin: 0; height: 100%; background: var(--paper); color: var(--ink); font-family: var(--sans); -webkit-font-smoothing: antialiased; overflow: hidden }
+button { font: inherit; color: inherit; background: none; border: 0; padding: 0; cursor: pointer }
+.stage { position: absolute; inset: 0; display: grid; grid-template-columns: calc(var(--u) * 27) minmax(0, 1fr) calc(var(--u) * 22); grid-template-rows: 1fr calc(var(--u) * 7.2);
+  gap: 0 calc(var(--u) * 2.4); padding: calc(var(--u) * 2.4) calc(var(--u) * 2.6) calc(var(--u) * 1.6) }
+.mono { font-family: var(--mono) }
+.tag { display: inline-block; font: 500 calc(var(--u) * .78)/1 var(--mono); letter-spacing: .12em; padding: calc(var(--u) * .42) calc(var(--u) * .6); background: #e8f6c2; text-transform: uppercase }
+
+/* ------------------------------------------------------------ left: level */
+.left { display: flex; flex-direction: column; min-height: 0 }
+.kicker { display: flex; justify-content: space-between; align-items: center }
+h1 { margin: calc(var(--u) * 1.3) 0 0; font-size: calc(var(--u) * 2.75); line-height: 1.08; font-weight: 700; letter-spacing: -.02em }
+.sub { margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * .92); color: var(--ink2); line-height: 1.5 }
+.levelbox { position: relative; margin-top: calc(var(--u) * 1.3); display: grid; grid-template-columns: calc(var(--u) * 9) 1fr; align-items: center; gap: calc(var(--u) * 1.2) }
+.orb { position: relative; width: calc(var(--u) * 9); aspect-ratio: 1; border-radius: 50%;
+  background: radial-gradient(circle, var(--core) 0%, var(--mid) 15%, color-mix(in oklab, var(--mid) 52%, transparent) 40%, color-mix(in oklab, var(--halo) 22%, transparent) 70%, transparent 100%);
+  transition: --mid 1.1s ease, --halo 1.1s ease, --core 1.1s ease; animation: breathe 5s ease-in-out infinite }
+.orb b { position: absolute; inset: 0; display: grid; place-items: center; font-size: calc(var(--u) * 2.8); font-weight: 700; letter-spacing: -.02em }
+.orb::after { content: ''; position: absolute; inset: 22%; border-radius: 50%; border: 1px solid var(--ink); opacity: .55 }
+.pulse { position: absolute; left: 0; top: 0; width: calc(var(--u) * 9); aspect-ratio: 1; border-radius: 50%; border: 1.5px solid var(--mid); opacity: 0; pointer-events: none }
+.pulse.go { animation: pulse 1.6s cubic-bezier(.2,.7,.2,1) }
+@keyframes pulse { 0% { transform: scale(.6); opacity: .9 } 100% { transform: scale(2.1); opacity: 0 } }
+@keyframes breathe { 50% { transform: scale(1.035) } }
+.lvno { font: 500 calc(var(--u) * .82)/1 var(--mono); letter-spacing: .14em; color: var(--ink2) }
+.lvname { margin-top: calc(var(--u) * .45); font-size: calc(var(--u) * 1.65); font-weight: 700; letter-spacing: -.01em; transition: color .8s }
+.msg { margin-top: calc(var(--u) * 1.1); font-size: calc(var(--u) * 1.18); line-height: 1.5; font-weight: 500; min-height: calc(var(--u) * 3.6) }
+.trace { margin-top: calc(var(--u) * .6); font: calc(var(--u) * .72)/1.7 var(--mono); color: var(--ink2); min-height: calc(var(--u) * 2.4) }
+.trace i { font-style: normal; padding: 0 .35em; border-radius: 3px }
+.latch { margin-top: calc(var(--u) * .7); display: none; align-items: center; gap: calc(var(--u) * .8); font-size: calc(var(--u) * .86); color: var(--ink2) }
+.latch.on { display: flex }
+.latch button { border: 1px solid var(--ink); border-radius: 99px; padding: calc(var(--u) * .3) calc(var(--u) * .8); font-size: calc(var(--u) * .8) }
+.ladder { margin-top: auto; border-top: 1px solid var(--line) }
+.rung { display: grid; grid-template-columns: calc(var(--u) * 1.8) 1fr; gap: calc(var(--u) * .8); padding: calc(var(--u) * .5) 0; border-bottom: 1px solid var(--line); opacity: .5; transition: opacity .6s }
+.rung.on { opacity: 1 }
+.rung .chip { width: calc(var(--u) * 1.8); aspect-ratio: 1; border-radius: 50%; margin-top: calc(var(--u) * .1) }
+.rung h4 { margin: 0; font-size: calc(var(--u) * .88); font-weight: 700 }
+.rung h4 span { font: 500 calc(var(--u) * .7) var(--mono); letter-spacing: .1em; color: var(--ink3); margin-left: .6em }
+.combos { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .3); margin-top: calc(var(--u) * .35) }
+.combo { font: calc(var(--u) * .66)/1 var(--mono); padding: calc(var(--u) * .24) calc(var(--u) * .45); border-radius: 99px; border: 1px solid var(--line); color: var(--ink2); transition: all .5s }
+.combo u { text-decoration: none; opacity: .45; transition: opacity .4s }
+.combo u.ok { opacity: 1; color: var(--ink); font-weight: 600 }
+.combo.fired { border-color: transparent; color: var(--ink) }
+.rules3 { display: flex; gap: calc(var(--u) * 1.1); padding-top: calc(var(--u) * .6); font-size: calc(var(--u) * .72); color: var(--ink2) }
+.rules3 b { font: 600 calc(var(--u) * .7) var(--mono); letter-spacing: .1em; color: var(--ink); margin-right: .45em }
+
+/* ------------------------------------------------------------ map */
+.mapwrap { position: relative; min-height: 0; display: grid; place-items: center }
+.map { position: relative; height: 100%; max-width: 100%; aspect-ratio: 1; padding: calc(var(--u) * 1.6) calc(var(--u) * 3.8) calc(var(--u) * .6) calc(var(--u) * .8) }
+.map svg { width: 100%; height: 100%; display: block; overflow: visible }
+.glow { opacity: 0; transition: opacity 1.1s ease, transform 1.4s cubic-bezier(.2,.8,.2,1); transform-box: fill-box; transform-origin: center; transform: scale(.55) }
+.glow.on { opacity: 1; transform: scale(1) }
+.glow.wait { opacity: .55; transform: scale(.78) }
+.glow.peek { opacity: .35; transform: scale(.85) }
+.glow .breath { transform-box: fill-box; transform-origin: center; animation: breath 5.5s ease-in-out infinite }
+@keyframes breath { 50% { transform: scale(1.08) } }
+.veil { transform: none !important }
+.reach path { fill: none; stroke-linecap: round; stroke-linejoin: round }
+.reach .rw { stroke: #ff92b2; stroke-opacity: .55 } .reach .rm { stroke: #ff1450; stroke-opacity: .8 } .reach .rc { stroke: #fff0f4 }
+.reach .flow { stroke: #ffffff; stroke-dasharray: 3 16; animation: flow 1.1s linear infinite }
+.reach.aux .rw { stroke: #d4cfe6 } .reach.aux .rm { stroke: #9b93bd }
+@keyframes flow { to { stroke-dashoffset: -19 } }
+.ring .rip { stroke: #ff1450; transform-box: fill-box; transform-origin: center; animation: rip 2.4s ease-out infinite; opacity: 0 }
+.ring .r1 { animation-delay: .8s } .ring .r2 { animation-delay: 1.6s }
+@keyframes rip { 0% { transform: scale(.2); opacity: .9 } 100% { transform: scale(1.6); opacity: 0 } }
+.mk { cursor: pointer }
+.mk .ring { fill: var(--paper); fill-opacity: .6; stroke: var(--ink); stroke-width: .8; stroke-opacity: .55; transition: all .4s }
+.mk .dot { fill: var(--ink); transition: all .4s }
+.mk .num, .mk .ht { transition: opacity .4s; opacity: .55 }
+.mk.on .ring { fill-opacity: 0; stroke-opacity: 1; stroke-width: 1 }
+.mk.on .num { opacity: 1 }
+.mk.wait .ring { stroke-dasharray: 2 2 }
+.mk.hl .ring { stroke-width: 1.6; stroke-opacity: 1 } .mk.hl .num { opacity: 1 }
+.L { opacity: 0; transition: opacity 1.4s ease }
+.ready .L { opacity: 1 }
+.ready .L2 { transition-delay: .25s } .ready .L3 { transition-delay: .5s } .ready .L4 { transition-delay: .7s } .ready .L5 { transition-delay: .9s } .ready .L6 { transition-delay: 1.1s }
+.tip { position: absolute; z-index: 5; width: calc(var(--u) * 21); padding: calc(var(--u) * 1.1) calc(var(--u) * 1.2); background: rgba(250,249,246,.92); backdrop-filter: blur(14px); -webkit-backdrop-filter: blur(14px);
+  box-shadow: 0 20px 50px -24px rgba(0,0,0,.35); border-radius: 6px; pointer-events: none; opacity: 0; transform: translateY(6px); transition: opacity .25s, transform .25s }
+.tip.on { opacity: 1; transform: none }
+.tip .q { font-size: calc(var(--u) * 1.3); font-weight: 700; line-height: 1.35 }
+.tip .w { margin-top: calc(var(--u) * .6); font-size: calc(var(--u) * .86); line-height: 1.55; color: var(--ink2) }
+.tip .m { margin-top: calc(var(--u) * .7); font: calc(var(--u) * .7)/1.6 var(--mono); color: var(--ink3) }
+.tip .role { display: inline-block; margin-top: calc(var(--u) * .7); font: 600 calc(var(--u) * .74) var(--mono); padding: calc(var(--u) * .25) calc(var(--u) * .55); border-radius: 99px }
+
+/* ------------------------------------------------------------ right: signals */
+.right { display: flex; flex-direction: column; min-height: 0 }
+.right .top { display: flex; justify-content: space-between; align-items: center; font: calc(var(--u) * .78) var(--mono); letter-spacing: .1em; color: var(--ink2) }
+.hint { margin-top: calc(var(--u) * 1.1); font-size: calc(var(--u) * .84); color: var(--ink2); line-height: 1.5 }
+.groups { margin-top: calc(var(--u) * .3); overflow: auto; scrollbar-width: none; min-height: 0 }
+.grp { margin-top: calc(var(--u) * .8) }
+.grp h5 { margin: 0 0 calc(var(--u) * .3); font: 500 calc(var(--u) * .72) var(--mono); letter-spacing: .14em; color: var(--ink3); text-transform: uppercase }
+.sig { width: 100%; display: grid; grid-template-columns: calc(var(--u) * 2.1) 1fr auto; align-items: center; gap: calc(var(--u) * .5); padding: calc(var(--u) * .3) calc(var(--u) * .4);
+  border-radius: 6px; text-align: left; transition: background .3s }
+.sig:hover, .sig.hl { background: rgba(22,21,20,.05) }
+.sig .n { font: 500 calc(var(--u) * .74) var(--mono); color: var(--ink3) }
+.sig .s { font-size: calc(var(--u) * .95); font-weight: 500 }
+.grp.D .list { display: flex; flex-wrap: wrap; gap: calc(var(--u) * .3) }
+.grp.D .sig { width: auto; grid-template-columns: auto auto; border: 1px solid var(--line); border-radius: 99px; padding: calc(var(--u) * .25) calc(var(--u) * .6) }
+.grp.D .sig .n { display: none } .grp.D .sig .s { font-size: calc(var(--u) * .8) } .grp.D .sig .r { display: none } .grp.D .sig .st { width: calc(var(--u) * .8) }
+.sig .st { display: inline-block; vertical-align: middle; width: calc(var(--u) * 1.15); aspect-ratio: 1; border-radius: 50%; border: 1px solid var(--ink3); transition: all .5s }
+.sig.on .st { border-color: transparent }
+.sig.on .s { font-weight: 700 }
+.sig .r { font: calc(var(--u) * .62) var(--mono); color: var(--ink3); margin-right: calc(var(--u) * .3) }
+.tools { margin-top: auto; padding-top: calc(var(--u) * 1); display: flex; gap: calc(var(--u) * .6) }
+.tools button { font: calc(var(--u) * .74) var(--mono); letter-spacing: .06em; padding: calc(var(--u) * .45) calc(var(--u) * .8); border: 1px solid var(--line); border-radius: 99px }
+.tools button:hover { border-color: var(--ink) }
+
+/* ------------------------------------------------------------ bottom: storm timeline */
+.timeline { grid-column: 1 / 4; display: grid; grid-template-columns: calc(var(--u) * 27) 1fr; gap: calc(var(--u) * 2.4); align-items: center; border-top: 1px solid var(--line); padding-top: calc(var(--u) * .9) }
+.play { display: flex; align-items: center; gap: calc(var(--u) * 1) }
+.play button.pb { width: calc(var(--u) * 3.2); aspect-ratio: 1; border-radius: 50%; background: var(--ink); color: var(--paper); display: grid; place-items: center; font-size: calc(var(--u) * 1) }
+.play .clk { font: 600 calc(var(--u) * 1.5) var(--mono); letter-spacing: -.02em }
+.play .lab { font-size: calc(var(--u) * .78); color: var(--ink2); line-height: 1.4 }
+.track { position: relative; height: calc(var(--u) * 4.2); cursor: ew-resize; touch-action: none }
+.track .base { position: absolute; left: 0; right: 0; top: 58%; height: 1px; background: var(--ink3) }
+.track .past { position: absolute; left: 0; top: 58%; height: 2px; margin-top: -.5px; background: var(--ink) }
+.track .ev { position: absolute; top: 58%; width: calc(var(--u) * .9); aspect-ratio: 1; margin: calc(var(--u) * -.45) 0 0 calc(var(--u) * -.45); border-radius: 50%; background: var(--paper); border: 1px solid var(--ink3); transition: all .4s }
+.track .ev.on { border-color: transparent }
+.track .evl { position: absolute; top: 0; transform: translateX(-50%); font: calc(var(--u) * .62) var(--mono); color: var(--ink3); white-space: nowrap; transition: color .4s }
+.track .evl.on { color: var(--ink) }
+.track .tick { position: absolute; top: 76%; font: calc(var(--u) * .62) var(--mono); color: var(--ink3); transform: translateX(-50%) }
+.track .head { position: absolute; top: 46%; bottom: 0; width: 1.5px; background: var(--ink) }
+.foot { position: absolute; right: calc(var(--u) * 2.6); bottom: calc(var(--u) * .5); font: calc(var(--u) * .6) var(--mono); color: var(--ink3); letter-spacing: .04em }
+.intro .left, .intro .right, .intro .timeline { opacity: 0; transform: translateY(10px) }
+.left, .right, .timeline { transition: opacity 1.1s ease, transform 1.1s ease }
+.right { transition-delay: .25s } .timeline { transition-delay: .45s }
+</style>
+</head>
+<body class="intro">
+<div class="stage">
+  <section class="left">
+    <div class="kicker"><span class="tag">Prototype · 传统经验规则模型 · v0.1</span></div>
+    <h1>看见什么，<br>就升到哪一级。</h1>
+    <div class="sub">老人谚语描述的现象，就是预警规则的输入。</div>
+    <div class="levelbox">
+      <div class="orb" id="orb"><b id="orbch">—</b></div><div class="pulse" id="pulse"></div>
+      <div><div class="lvno" id="lvno">LEVEL 0</div><div class="lvname" id="lvname">暂无征兆</div></div>
+    </div>
+    <div class="msg" id="msg">在右侧标记你看到的现象，或者播放下方的一场暴雨。</div>
+    <div class="trace" id="trace"></div>
+    <div class="latch" id="latch"><span>征兆减弱了，但等级不会自动下降。</span><button id="reeval">重新评估</button></div>
+    <div class="ladder" id="ladder"></div>
+    <div class="rules3"><span><b>OR</b>强信号任一出现</span><span><b>AND</b>弱信号组合出现</span><span><b>TIME</b>只升不轻易降</span></div>
+  </section>
+
+  <section class="mapwrap"><div class="map" id="map">
+    <svg viewBox="0 0 1000 1000" id="svg" xmlns="http://www.w3.org/2000/svg"><!--%SVG%--></svg>
+    <div class="tip" id="tip"></div>
+  </div></section>
+
+  <section class="right">
+    <div class="top"><span>沈家庵村 · 拒马河谷</span><span>39.595N 115.679E</span></div>
+    <div class="hint">你看到了什么？点一下。地图亮起观察它的地方，颜色是它触发的等级。</div>
+    <div class="groups" id="groups"></div>
+    <div class="tools"><button id="clear">清空</button><button id="export">导出 SVG → Figma</button></div>
+  </section>
+
+  <section class="timeline">
+    <div class="play"><button class="pb" id="pb">▶</button><div><div class="clk" id="clk">06:00</div><div class="lab">一场暴雨的 32 小时 · 示意场景，不是真实事件记录</div></div></div>
+    <div class="track" id="track"><div class="base"></div><div class="past" id="past"></div><div class="head" id="head"></div></div>
+  </section>
+</div>
+<div class="foot">地形 Copernicus GLO-30 DEM · 等高线 10 m · 道路 / 水系 OpenStreetMap · 701 栋房屋：卫星影像识别 · 观察点按地形推定 · 非官方预警，以政府发布为准</div>
+
+<script>
+const D = /*%DATA%*/;
+const $ = id => document.getElementById(id), SIG = D.signals, RULES = D.rules;
+const LV = [
+  { k: '—', no: 'LEVEL 0', name: '暂无征兆', mid: '#9b93bd', halo: '#d4cfe6', core: '#f6f4fb', txt: '#161514', msg: '在右侧标记你看到的现象，或者播放下方的一场暴雨。' },
+  { k: '蓝', no: '一级 · LEVEL 1', name: '天气征兆出现', mid: '#2f6bff', halo: '#8fb3ff', core: '#eef3ff', txt: '#2f6bff', msg: '山地天气可能发生变化，请开始关注云层和天气变化。' },
+  { k: '黄', no: '二级 · LEVEL 2', name: '降雨风险增加', mid: '#ffb800', halo: '#ffdd55', core: '#fffbe6', txt: '#c99a00', msg: '天气可能向强降雨发展，请准备避险，远离河沟和低洼区域。' },
+  { k: '橙', no: '三级 · LEVEL 3', name: '上游水情异常', mid: '#ff5a0a', halo: '#ffb489', core: '#fff0e6', txt: '#ff5a0a', msg: '发现异常水情或山体迹象，请立即远离河道、沟谷和危险坡体，向安全地点转移。' },
+  { k: '红', no: '四级 · LEVEL 4', name: '灾害正在发生或迫近', mid: '#ff1450', halo: '#ff92b2', core: '#fff0f4', txt: '#ff1450', msg: '立即向沟谷两侧高处或安全避险点撤离，不要停留观察，不要返回取物。' },
+];
+const GRP = { A: 'A · 观察云层', B: 'B · 观察天色', C: 'C · 观察河流山谷', D: '持续 · 增强（与上面组合）' };
+const short = id => SIG[id].s;
+const S = { obs: new Set(), latched: 0, t: 0, playing: false, manual: false, hover: null };
+
+// ---------------------------------------------------------------- rule engine
+function evaluate(obs) {
+  let lv = 0; const fired = [];
+  for (const r of RULES) if (r.ids.every(i => obs.has(i))) { fired.push(r); lv = Math.max(lv, r.lv); }
+  return { lv, fired };
+}
+function roleOf(id) {
+  const rs = RULES.filter(r => r.ids.includes(id));
+  if (!rs.length) return { lv: 0, text: '辅助观察：单独不升级' };
+  const solo = rs.find(r => r.ids.length === 1);
+  if (solo) return { lv: solo.lv, text: `任一出现 → ${LV[solo.lv].no.split(' ')[0]}` };
+  const r = rs[0]; const other = r.ids.filter(i => i !== id).map(i => (i.length === 2 ? i + ' ' : '') + short(i)).join(' + ');
+  return { lv: r.lv, text: `与 ${other} 组合 → ${LV[r.lv].no.split(' ')[0]}`, combo: true };
+}
+
+// ---------------------------------------------------------------- UI build
+const groups = $('groups');
+for (const g of ['A', 'B', 'C', 'D']) {
+  const box = document.createElement('div'); box.className = 'grp ' + g; box.innerHTML = `<h5>${GRP[g]}</h5><div class="list"></div>`; const list = box.querySelector('.list');
+  for (const [id, s] of Object.entries(SIG)) if (s.g === g) {
+    const r = roleOf(id), b = document.createElement('button'); b.className = 'sig'; b.dataset.id = id;
+    b.innerHTML = `<span class="n">${id.length === 2 ? id : '+'}</span><span class="s">${s.s}</span><span><span class="r">${r.lv ? (r.combo ? '组合' : '') : '辅助'}</span><span class="st"></span></span>`;
+    b.querySelector('.st').style.cssText = r.lv ? `` : `border-style:dashed`;
+    list.appendChild(b);
+  }
+  groups.appendChild(box);
+}
+const ladder = $('ladder');
+for (let lv = 1; lv <= 4; lv++) {
+  const L = LV[lv], d = document.createElement('div'); d.className = 'rung'; d.dataset.lv = lv;
+  const cs = RULES.filter(r => r.lv === lv).map((r, k) => `<span class="combo" data-r="${RULES.indexOf(r)}">${r.ids.map(i => `<u data-i="${i}">${i.length === 2 ? i : short(i)}</u>`).join(' + ')}</span>`).join('');
+  d.innerHTML = `<span class="chip" style="background:radial-gradient(circle, ${L.core} 0%, ${L.mid} 20%, ${L.halo}55 62%, transparent 100%)"></span>
+    <div><h4 style="color:${L.txt}">${L.k} · ${L.name}<span>${lv === 2 ? 'AND' : 'OR'}</span></h4><div class="combos">${cs}</div></div>`;
+  ladder.appendChild(d);
+}
+// timeline
+const track = $('track'), TT = 32, EV = D.scenario;
+const clock = t => { const m = Math.round((6 + t) * 60), d = Math.floor(m / 1440), hh = Math.floor(m / 60) % 24, mm = m % 60; return `${d ? '第2天 ' : '第1天 '}${String(hh).padStart(2, '0')}:${String(mm).padStart(2, '0')}`; };
+for (let h = 0; h < TT; h += 4) { const e = document.createElement('div'); e.className = 'tick'; e.style.left = (h / TT * 100) + '%'; e.textContent = clock(h).replace('第1天 ', '').replace('第2天 ', 'D2 '); track.appendChild(e); }
+const lastX = [-99, -99];
+EV.forEach(([t, id], k) => {
+  const x = t / TT * 100, e = document.createElement('div'); e.className = 'ev'; e.style.left = x + '%'; e.dataset.k = k; track.appendChild(e);
+  const row = x - lastX[0] > 6.5 ? 0 : x - lastX[1] > 6.5 ? 1 : -1;
+  if (row >= 0) { const l = document.createElement('div'); l.className = 'evl'; l.dataset.k = k; l.style.left = Math.min(x, 96) + '%'; l.style.top = row ? '24%' : '0'; l.textContent = (id.length === 2 ? id + ' ' : '') + short(id); track.appendChild(l); lastX[row] = x; }
+});
+
+// ---------------------------------------------------------------- render
+const svg = $('svg');
+function render(prevLv) {
+  const { lv, fired } = evaluate(S.obs);
+  if (lv > S.latched) S.latched = lv;
+  const shown = S.latched, L = LV[shown], orb = $('orb');
+  orb.style.setProperty('--mid', L.mid); orb.style.setProperty('--halo', L.halo); orb.style.setProperty('--core', L.core);
+  $('orbch').textContent = L.k; $('lvno').textContent = L.no; $('lvname').textContent = L.name; $('lvname').style.color = L.txt; $('msg').textContent = L.msg;
+  if (prevLv !== undefined && shown > prevLv) { const p = $('pulse'); p.style.borderColor = L.mid; p.classList.remove('go'); void p.offsetWidth; p.classList.add('go'); }
+  const top = fired.filter(r => r.lv === lv);
+  $('trace').innerHTML = top.length ? '触发 ' + top.map(r => r.ids.map(i => `<i style="background:${LV[r.lv].halo}66">${i.length === 2 ? i + ' ' : ''}${short(i)}</i>`).join(' + ')).join(' · ') + `  →  ${LV[lv].k}` + (top[0].ids.length > 1 ? ' · AND' : ' · OR') : (S.obs.size ? '已记录的征兆还不足以升级（需要组合）' : '');
+  $('latch').classList.toggle('on', S.latched > lv);
+  // per-signal colour = highest fired rule containing it
+  const sl = {}; for (const r of fired) for (const i of r.ids) sl[i] = Math.max(sl[i] || 0, r.lv);
+  for (const [id, s] of Object.entries(SIG)) {
+    const on = S.obs.has(id), lvl = sl[id] || 0, g = document.getElementById('g-' + id), m = document.getElementById('m-' + id);
+    const peek = S.hover === id && !on;
+    if (g) {
+      g.classList.toggle('on', on && lvl > 0); g.classList.toggle('wait', on && !lvl); g.classList.toggle('peek', peek);
+      const pref = lvl ? 'l' + lvl : (peek ? 'l' + (roleOf(id).lv || 1) : 'aux');
+      g.querySelectorAll('circle.breath').forEach(c => c.setAttribute('fill', `url(#${pref})`));
+      g.querySelectorAll('rect').forEach(c => c.setAttribute('fill', `url(#v${pref})`));
+      if (g.classList.contains('reach')) g.classList.toggle('aux', !lvl && !peek);
+    }
+    if (m) { m.classList.toggle('on', on); m.classList.toggle('wait', on && !lvl); m.classList.toggle('hl', S.hover === id); }
+    const b = groups.querySelector(`[data-id="${id}"]`);
+    b.classList.toggle('on', on); b.classList.toggle('hl', S.hover === id);
+    b.querySelector('.st').style.background = on ? (lvl ? `radial-gradient(circle, ${LV[lvl].core}, ${LV[lvl].mid} 45%, ${LV[lvl].halo})` : '#d4cfe6') : 'transparent';
+  }
+  // surge reach lights up with 13 + surge or debris
+  const gs = document.getElementById('g-surge'); const sOn = S.obs.has('surge') || S.obs.has('debris');
+  gs.classList.toggle('on', sOn && lv === 4); gs.classList.toggle('wait', sOn && lv < 4);
+  // ladder
+  ladder.querySelectorAll('.rung').forEach(r => r.classList.toggle('on', +r.dataset.lv <= shown && shown > 0));
+  ladder.querySelectorAll('.combo').forEach(c => { const r = RULES[+c.dataset.r], f = fired.includes(r);
+    c.classList.toggle('fired', f); c.style.background = f ? LV[r.lv].halo + '88' : 'transparent';
+    c.querySelectorAll('u').forEach(u => u.classList.toggle('ok', S.obs.has(u.dataset.i))); });
+  // timeline
+  const x = S.t / TT * 100; $('past').style.width = x + '%'; $('head').style.left = x + '%'; $('clk').textContent = clock(S.t);
+  track.querySelectorAll('.ev').forEach(e => { const [t, id] = EV[+e.dataset.k], on = t <= S.t && !S.manual; e.classList.toggle('on', on); const l2 = sl[id] || 0;
+    e.style.background = on ? (l2 ? LV[l2].mid : '#d4cfe6') : 'var(--paper)'; });
+  track.querySelectorAll('.evl').forEach(e => e.classList.toggle('on', EV[+e.dataset.k][0] <= S.t && !S.manual));
+  $('pb').textContent = S.playing ? '❚❚' : '▶';
+}
+function setT(t) {   // timeline drives the observations: replay the scenario up to t
+  const prev = S.latched; S.t = Math.max(0, Math.min(TT, t)); S.manual = false; S.obs = new Set(); S.latched = 0;
+  for (const [te, id] of EV) if (te <= S.t) { S.obs.add(id); const { lv } = evaluate(S.obs); S.latched = Math.max(S.latched, lv); }
+  render(prev);
+}
+function toggle(id) {
+  if (!S.manual) { S.manual = true; S.playing = false; }
+  const prev = S.latched; S.obs.has(id) ? S.obs.delete(id) : S.obs.add(id); render(prev);
+}
+groups.addEventListener('click', e => { const b = e.target.closest('.sig'); if (b) toggle(b.dataset.id); });
+svg.addEventListener('click', e => { const m = e.target.closest('.mk'); if (m) toggle(m.dataset.id); });
+$('reeval').onclick = () => { const { lv } = evaluate(S.obs); S.latched = lv; render(); };
+$('clear').onclick = () => { S.obs.clear(); S.latched = 0; S.manual = true; S.playing = false; S.t = 0; render(); };
+$('pb').onclick = () => { if (S.playing) { S.playing = false; render(); return; } if (S.manual || S.t >= TT) { S.t = 0; } S.manual = false; S.playing = true; last = performance.now(); setT(S.t); };
+let drag = false;
+const tAt = e => { const r = track.getBoundingClientRect(); return (e.clientX - r.left) / r.width * TT; };
+track.addEventListener('pointerdown', e => { drag = true; track.setPointerCapture(e.pointerId); S.playing = false; setT(tAt(e)); });
+track.addEventListener('pointermove', e => { if (drag) setT(tAt(e)); });
+track.addEventListener('pointerup', () => drag = false);
+let last = performance.now();
+function loop(now) {
+  const dt = Math.min(.1, (now - last) / 1000); last = now;
+  if (S.playing) { setT(S.t + dt * TT / 30); if (S.t >= TT) { S.playing = false; render(); } }
+  requestAnimationFrame(loop);
+}
+requestAnimationFrame(loop);
+
+// ---------------------------------------------------------------- tooltip
+const tip = $('tip'), mapEl = $('map');
+function showTip(id) {
+  S.hover = id; render();
+  if (!id) { tip.classList.remove('on'); return; }
+  const s = SIG[id], r = roleOf(id), L = LV[r.lv];
+  tip.innerHTML = `<div class="q">${s.f}</div><div class="w">${s.why}</div>
+    <span class="role" style="background:${r.lv ? L.halo + '88' : '#e6e3ee'};color:${r.lv ? L.txt : '#5d5876'}">${r.text}</span>
+    <div class="m">在哪里看 · ${s.at}<br>依据 · ${s.src}</div>`;
+  const svgR = svg.getBoundingClientRect(), mR = mapEl.getBoundingClientRect();
+  let x = s.type === 'veil' || s.type === 'none' ? 500 : s.x, y = s.type === 'veil' || s.type === 'none' ? 120 : s.y;
+  let px = svgR.left - mR.left + x / 1000 * svgR.width, py = svgR.top - mR.top + y / 1000 * svgR.height;
+  const w = tip.offsetWidth || 300, h = tip.offsetHeight || 180;
+  px = px + 24 + w > mR.width ? px - w - 24 : px + 24; py = Math.max(8, Math.min(mR.height - h - 8, py - h / 2));
+  tip.style.left = px + 'px'; tip.style.top = py + 'px'; tip.classList.add('on');
+}
+groups.addEventListener('pointerover', e => { const b = e.target.closest('.sig'); if (b && S.hover !== b.dataset.id) showTip(b.dataset.id); });
+groups.addEventListener('pointerleave', () => showTip(null));
+svg.addEventListener('pointerover', e => { const m = e.target.closest('.mk'); showTip(m ? m.dataset.id : null); });
+svg.addEventListener('pointerleave', () => showTip(null));
+
+// ---------------------------------------------------------------- hillshade from the DEM (Catmull-Rom upsampling, multi-directional light)
+function hillshade() {
+  const n = D.N, bin = atob(D.elev), u8 = new Uint8Array(bin.length); for (let i = 0; i < bin.length; i++) u8[i] = bin.charCodeAt(i);
+  const E16 = new Uint16Array(u8.buffer), E = new Float32Array(n * n); for (let i = 0; i < n * n; i++) E[i] = E16[i] / 10;
+  const M = 1024, f = M / n, U = new Float32Array(M * M), id = a => Math.min(n - 1, Math.max(0, a));
+  const w = t => { const t2 = t * t, t3 = t2 * t; return [-.5 * t3 + t2 - .5 * t, 1.5 * t3 - 2.5 * t2 + 1, -1.5 * t3 + 2 * t2 + .5 * t, .5 * t3 - .5 * t2]; };
+  const WX = [], CX = []; for (let i = 0; i < M; i++) { const g = (i + .5) / f - .5, i0 = Math.floor(g); WX.push(w(g - i0)); CX.push([id(i0 - 1), id(i0), id(i0 + 1), id(i0 + 2)]); }
+  for (let j = 0; j < M; j++) { const wz = WX[j], rz = CX[j];
+    for (let i = 0; i < M; i++) { const wx = WX[i], c = CX[i]; let v = 0;
+      for (let a = 0; a < 4; a++) { const r = rz[a] * n; v += wz[a] * (wx[0] * E[r + c[0]] + wx[1] * E[r + c[1]] + wx[2] * E[r + c[2]] + wx[3] * E[r + c[3]]); }
+      U[j * M + i] = v; } }
+  const BED = D.bed, cs = 2 * D.half / M, zf = 2.2, img = new ImageData(M, M), px = img.data;
+  const lights = [[315, .55], [260, .25], [10, .2]].map(([az, wt]) => { const a = az * Math.PI / 180, el = 42 * Math.PI / 180; return [Math.sin(a) * Math.cos(el), -Math.cos(a) * Math.cos(el), Math.sin(el), wt]; });
+  const P = [246, 244, 240], SH = [188, 186, 182], BEDC = [216, 228, 234];
+  for (let j = 0; j < M; j++) for (let i = 0; i < M; i++) {
+    const k = j * M + i, l = U[j * M + Math.max(0, i - 1)], r = U[j * M + Math.min(M - 1, i + 1)], t = U[Math.max(0, j - 1) * M + i], b = U[Math.min(M - 1, j + 1) * M + i];
+    const dx = (r - l) / (2 * cs) * zf, dy = (b - t) / (2 * cs) * zf, L = Math.hypot(dx, dy, 1), nx = -dx / L, ny = -dy / L, nz = 1 / L;
+    let s = 0; for (const [lx, ly, lz, wt] of lights) s += wt * Math.max(0, nx * lx + ny * ly + nz * lz);
+    const flat = Math.sin(42 * Math.PI / 180), d = Math.max(-1, Math.min(1, (s - flat) * 2.4)), sl = Math.min(1, Math.hypot(dx, dy) / zf / 1.1);
+    const sh = d < 0 ? -d * .7 + sl * .08 : sl * .06 - d * .05;
+    let c = P.map((p, q) => p + (SH[q] - p) * Math.max(0, Math.min(1, sh)));
+    const bi = BED[Math.floor(j / f) * n + Math.floor(i / f)];
+    if (bi > 0 && U[k] < bi / 10) { const a = Math.min(1, (bi / 10 - U[k]) / 1.2) * .85; c = c.map((v, q) => v + (BEDC[q] - v) * a); }
+    px[k * 4] = c[0]; px[k * 4 + 1] = c[1]; px[k * 4 + 2] = c[2]; px[k * 4 + 3] = 255;
+  }
+  const cv = document.createElement('canvas'); cv.width = cv.height = M; cv.getContext('2d').putImageData(img, 0, 0);
+  $('hs').setAttribute('href', cv.toDataURL('image/png'));
+}
+
+// ---------------------------------------------------------------- export (SVG with the hillshade embedded, current state)
+$('export').onclick = () => {
+  const clone = svg.cloneNode(true); clone.setAttribute('width', 2000); clone.setAttribute('height', 2000);
+  clone.setAttribute('viewBox', '-60 -40 1140 1080');
+  clone.querySelectorAll('.glow').forEach(g => { const cs = getComputedStyle(document.getElementById(g.id)); g.setAttribute('opacity', cs.opacity); g.removeAttribute('class'); });
+  clone.querySelectorAll('.L').forEach(g => g.removeAttribute('class'));
+  const blob = new Blob(['<?xml version="1.0" encoding="UTF-8"?>\n' + new XMLSerializer().serializeToString(clone)], { type: 'image/svg+xml' });
+  const a = document.createElement('a'); a.href = URL.createObjectURL(blob); a.download = `沈家庵-征兆地图-${LV[S.latched].k}.svg`; a.click();
+};
+
+// ---------------------------------------------------------------- start
+render();
+requestAnimationFrame(() => setTimeout(() => {
+  hillshade(); document.body.classList.remove('intro'); svg.classList.add('ready');
+  if (!new URLSearchParams(location.search).has('still')) setTimeout(() => { if (!S.manual) { S.playing = true; last = performance.now(); } }, 2200);
+}, 30));
+const q = new URLSearchParams(location.search).get('t'); if (q) setTimeout(() => setT(+q), 60);
+</script>
+</body>
+</html>

@@ -157,17 +157,18 @@ def back():
     s.append(text(70, 2024, '来源：中国天气网 · 中科院科普 · 水利部山洪防御资料 · 国家应急广播 · 重庆市应急管理局 · 11–15 为项目整理的易记表达，非已查证老人原句', 15, family=MONO, op=.5))
     return f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">{"".join(s)}</svg>'
 
-page = f'''<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>村庄自然征兆预警 · 传统经验规则模型 v0.1</title>
-<style>
-@page {{ size: 148mm 210mm; margin: 0 }}
-html,body {{ margin:0; background:#e6e3dd; font-family:{SANS} }}
-.wrap {{ display:flex; flex-wrap:wrap; gap:36px; justify-content:center; padding:40px 24px 60px }}
-.side {{ width:min(46vw, 640px); aspect-ratio:148/210; box-shadow:0 30px 60px -30px rgba(0,0,0,.35) }}
-.side svg {{ width:100%; height:100%; display:block }}
-@media (max-width:900px) {{ .side {{ width:92vw }} }}
-@media print {{ html,body {{ background:none }} .wrap {{ display:block; padding:0 }} .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
-</style></head><body><div class="wrap"><div class="side">{front()}</div><div class="side">{back()}</div></div></body></html>'''
-open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(page)
-print('wrote index.html (concept v0.3)', len(page) // 1024, 'KB')
+if __name__ == '__main__':
+    page = f'''<!doctype html>
+    <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>村庄自然征兆预警 · 传统经验规则模型 v0.1</title>
+    <style>
+    @page {{ size: 148mm 210mm; margin: 0 }}
+    html,body {{ margin:0; background:#e6e3dd; font-family:{SANS} }}
+    .wrap {{ display:flex; flex-wrap:wrap; gap:36px; justify-content:center; padding:40px 24px 60px }}
+    .side {{ width:min(46vw, 640px); aspect-ratio:148/210; box-shadow:0 30px 60px -30px rgba(0,0,0,.35) }}
+    .side svg {{ width:100%; height:100%; display:block }}
+    @media (max-width:900px) {{ .side {{ width:92vw }} }}
+    @media print {{ html,body {{ background:none }} .wrap {{ display:block; padding:0 }} .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
+    </style></head><body><div class="wrap"><div class="side">{front()}</div><div class="side">{back()}</div></div></body></html>'''
+    open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(page)
+    print('wrote index.html (concept v0.3)', len(page) // 1024, 'KB')

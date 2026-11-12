@@ -299,17 +299,18 @@ def back():
     s.append(text(70, 2015, '口诀含新编句（现象有官方资料：中国天气网 · 国家应急广播 · 应急管理部门）· 非官方预警', 15, family=MONO, op=.5))
     return f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">{"".join(s)}</svg>'
 
-page = f'''<!doctype html>
-<html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>水记得路 · 沈家庵山洪泥石流征兆卡 v0.2</title>
-<style>
-@page {{ size: 148mm 210mm; margin: 0 }}
-html,body {{ margin:0; background:#000; font-family:{SANS} }}
-.wrap {{ display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 24px 60px }}
-.side {{ width:min(46vw, 640px); aspect-ratio:148/210; box-shadow:0 0 0 1px rgba(255,255,255,.08) }}
-.side svg {{ width:100%; height:100%; display:block }}
-@media (max-width:900px) {{ .side {{ width:92vw }} }}
-@media print {{ .wrap {{ display:block; padding:0 }} .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
-</style></head><body><div class="wrap"><div class="side">{front()}</div><div class="side">{back()}</div></div></body></html>'''
-open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(page)
-print(f'houses {len(HOUSES)} (east bank added {n_east_new}) · low (HAND<{LOW:.0f} m) {n_low}: gully {n_low_g}, river {n_low_r} · village elev {village_e:.0f} m · {len(page) // 1024} KB')
+if __name__ == '__main__':
+    page = f'''<!doctype html>
+    <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+    <title>水记得路 · 沈家庵山洪泥石流征兆卡 v0.2</title>
+    <style>
+    @page {{ size: 148mm 210mm; margin: 0 }}
+    html,body {{ margin:0; background:#000; font-family:{SANS} }}
+    .wrap {{ display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 24px 60px }}
+    .side {{ width:min(46vw, 640px); aspect-ratio:148/210; box-shadow:0 0 0 1px rgba(255,255,255,.08) }}
+    .side svg {{ width:100%; height:100%; display:block }}
+    @media (max-width:900px) {{ .side {{ width:92vw }} }}
+    @media print {{ .wrap {{ display:block; padding:0 }} .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
+    </style></head><body><div class="wrap"><div class="side">{front()}</div><div class="side">{back()}</div></div></body></html>'''
+    open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(page)
+    print(f'houses {len(HOUSES)} (east bank added {n_east_new}) · low (HAND<{LOW:.0f} m) {n_low}: gully {n_low_g}, river {n_low_r} · village elev {village_e:.0f} m · {len(page) // 1024} KB')

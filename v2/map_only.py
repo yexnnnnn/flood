@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Map-only components for Figma: v2/figma/地图组件/M3 线稿.svg, M4 点阵.svg
+"""Map-only components for Figma: v2/figma/地图组件/M3 线稿.svg, M4 点阵.svg, M6 点阵晕渲.svg (M4 houses on the M1 shaded base)
 
 Built so every piece can be selected and dragged after the SVG is dropped into Figma:
 - each house is its own layer (M3: a real rotated <rect>; M4: one compound path of its grid cells),
@@ -59,7 +59,7 @@ def houses_rect(fill=PAPER, stroke=INK, op=.75, w=.32):
         s.append('</g>')
     return ''.join(s) + '</g>'
 
-def houses_grid(cell=2.5, sq=1.9, color='#6b665f'):
+def houses_grid(cell=2.5, sq=1.9, color='#6b665f', shadow=None):
     taken, s, o = set(), ['<g id="房屋">'], (cell - sq) / 2
     for name, idx in CL:
         s.append(f'<g id="{name}">')
@@ -74,7 +74,11 @@ def houses_grid(cell=2.5, sq=1.9, color='#6b665f'):
             taken |= mine
             if mine:
                 d = ''.join(f'M{p * cell + o:.1f} {q * cell + o:.1f}h{sq}v{sq}h-{sq}z' for p, q in sorted(mine))
-                s.append(f'<path id="{name}-{n + 1:03d}" d="{d}" fill="{color}"/>')
+                if shadow:   # one group per house: cast shadow + dots move together
+                    sd = ''.join(f'M{p * cell:.1f} {q * cell:.1f}h{cell}v{cell}h-{cell}z' for p, q in sorted(mine))
+                    s.append(f'<g id="{name}-{n + 1:03d}"><path id="投影" d="{sd}" transform="translate({shadow[0]} {shadow[0]})" fill="#7d776e" fill-opacity="{shadow[1]}"/>'
+                             f'<path id="点" d="{d}" fill="{color}"/></g>')
+                else: s.append(f'<path id="{name}-{n + 1:03d}" d="{d}" fill="{color}"/>')
         s.append('</g>')
     return ''.join(s) + '</g>'
 
@@ -130,6 +134,12 @@ def water(fill, edge, river, rw, hatched=False):
 
 NAME = {'main': '主路', 'lane': '村路'}
 def roads(kind):
+    if kind == 'white':
+        R = [(n, r, pts_d(chaikin(r['p'], 1))) for n, r in enumerate(G['roads'])]
+        out = ['<g id="道路"><g id="道路-边线">'] + [f'<path id="{NAME[r["k"]]}-{n:03d}-边线" d="{d}" fill="none" stroke="#d4cec4" stroke-width="{S.RW[r["k"]] + 1:.1f}" stroke-linecap="round" stroke-linejoin="round"/>' for n, r, d in R if r['k'] in S.RW]
+        out += ['</g><g id="道路-路面">'] + [f'<path id="{NAME[r["k"]]}-{n:03d}-路面" d="{d}" fill="none" stroke="#ffffff" stroke-width="{S.RW[r["k"]]}" stroke-linecap="round" stroke-linejoin="round"/>' for n, r, d in R if r['k'] in S.RW]
+        paths = roads('hair'); paths = paths[paths.index('<g id="道路-小径">'):-len('</g>')]   # reuse the 小径 group
+        return ''.join(out) + '</g>' + paths + '</g>'
     R = [(n, r, pts_d(chaikin(r['p'], 1))) for n, r in enumerate(G['roads'])]
     s = ['<g id="道路">']
     if kind == 'double':
@@ -184,6 +194,8 @@ MAPS = {
            + roads('double') + houses_rect() + labels()),
     'M4': ('点阵', lambda: dots() + contours((.3, 0, INK), (.4, .14, INK)) + water('#dce8ef', 'none', '#3f7fa6', 1.3)
            + roads('hair') + houses_grid() + labels()),
+    'M6': ('点阵晕渲', lambda: shade(1) + contours((.28, .1, '#4a443d'), (.5, .22, '#4a443d')) + water('#d6e3eb', '#7d9db0', '#5f87a0', 1.1)
+           + roads('white') + houses_grid(2.5, 1.9, '#5f5a53', (.7, .28)) + labels()),
 }
 
 if __name__ == '__main__':

@@ -1,0 +1,457 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>看见什么，就升到哪一级 · 沈家庵村</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=JetBrains+Mono:wght@400;500&family=Noto+Sans+SC:wght@400;500;700&display=swap" rel="stylesheet">
+<style>
+:root { --paper:#f5f3ef; --ink:#161514; --lv:#9b93bd; --lvtxt:#6b6585; --halo:#d4cfe6;
+  --sans:"Noto Sans SC","PingFang SC","Source Han Sans SC","Microsoft YaHei",sans-serif;
+  --mono:"JetBrains Mono","SF Mono",Menlo,Consolas,monospace; --ease:cubic-bezier(.6,0,.2,1); }
+* { box-sizing:border-box; margin:0; padding:0; }
+html, body { height:100%; background:var(--paper); overflow:hidden; color:var(--ink); font-family:var(--sans); }
+#stage { position:absolute; left:50%; top:50%; width:1920px; height:1080px; transform-origin:0 0; overflow:hidden; background:var(--paper); }
+#map { position:absolute; inset:0; }
+#cam { transition:transform 1.8s var(--ease); transform-origin:0 0; }
+#drift { animation:drift 26s ease-in-out infinite alternate; transform-origin:1180px 470px; }
+@keyframes drift { from { transform:scale(1) translate(0,0); } to { transform:scale(1.035) translate(-10px,6px); } }
+
+/* signs */
+.glow { transform-box:fill-box; transform-origin:center; }
+.glow.pt circle { transform-box:fill-box; transform-origin:center; animation:breathe 3.6s ease-in-out infinite; }
+.glow.pt.enter { animation:pop 1.4s var(--ease) both; }
+@keyframes pop { from { opacity:0; transform:scale(.25); } 60% { opacity:1; } to { opacity:1; transform:scale(1); } }
+@keyframes breathe { 0%,100% { transform:scale(1); } 50% { transform:scale(1.09); } }
+.glow.reach.enter .draw { animation:draw 1.8s var(--ease) backwards; }
+@keyframes draw { from { stroke-dasharray:1 1; stroke-dashoffset:1; } to { stroke-dasharray:1 1; stroke-dashoffset:0; } }
+.glow.reach .flow { animation:flow 3.2s linear infinite; }
+@keyframes flow { to { stroke-dashoffset:-190; } }
+.glow.veil, .glow.ring { animation:fadein 1.6s var(--ease) both; }
+.glow.ring circle { transform-box:fill-box; transform-origin:center; animation:ring 2.4s ease-out infinite; }
+.glow.ring circle:nth-child(2) { animation-delay:.8s; } .glow.ring circle:nth-child(3) { animation-delay:1.6s; }
+@keyframes ring { from { transform:scale(.4); opacity:1; } to { transform:scale(1.5); opacity:0; } }
+@keyframes fadein { from { opacity:0; } to { opacity:1; } }
+.glow { transition:opacity .6s; }
+.mk circle:first-child { transition:r .5s var(--ease), stroke-opacity .5s, fill-opacity .5s; }
+.mk.on circle:first-child { fill-opacity:0; stroke-opacity:1; }
+.mk.focus circle:first-child { r:10px; stroke-width:1.4; stroke-opacity:1; }
+.mk.hot circle:first-child { r:13px; stroke-width:1.6; stroke-opacity:1; }
+body.explore .mk { cursor:pointer; }
+body.explore .mk:hover circle:first-child { r:11px; stroke-opacity:1; }
+.mk .hit { fill:transparent; }
+.atm { transition:opacity 1.6s var(--ease), transform 1.8s var(--ease); }
+
+/* overlay panels */
+.ui { position:absolute; inset:0; pointer-events:none; }
+.ui > * { pointer-events:auto; }
+.fadeL { position:absolute; left:0; top:0; width:1000px; height:1080px; pointer-events:none;
+  background:linear-gradient(90deg, var(--paper) 0, var(--paper) 30%, rgba(245,243,239,.82) 48%, rgba(245,243,239,0) 100%); }
+.fadeB { position:absolute; left:0; bottom:0; width:1920px; height:300px; pointer-events:none;
+  background:linear-gradient(0deg, var(--paper) 0, var(--paper) 46%, rgba(245,243,239,0) 100%); }
+.mono { font-family:var(--mono); letter-spacing:.14em; font-size:16px; opacity:.55; }
+.eyebrow { position:absolute; left:96px; top:100px; }
+.topright { position:absolute; right:96px; top:88px; display:flex; gap:14px; align-items:center; }
+.seg { display:flex; background:rgba(22,21,20,.06); border-radius:999px; padding:4px; }
+.seg button { border:0; background:transparent; font:500 16px var(--sans); padding:8px 18px; border-radius:999px; cursor:pointer; color:rgba(22,21,20,.6); transition:all .3s; }
+.seg button.on { background:#fff; color:var(--ink); box-shadow:0 1px 8px rgba(22,21,20,.08); }
+a.ghost { font:400 15px var(--mono); color:rgba(22,21,20,.55); text-decoration:none; letter-spacing:.06em; }
+a.ghost:hover { color:var(--ink); }
+
+/* presentation */
+#pres, #cover, #end, #explore { transition:opacity .6s; }
+.hide { opacity:0 !important; pointer-events:none !important; }
+.group { position:absolute; left:96px; top:282px; }
+.proverb { position:absolute; left:90px; top:318px; font-weight:700; font-size:80px; line-height:100px; letter-spacing:-2px; width:560px; }
+.proverb span { display:inline-block; opacity:0; transform:translateY(34px); animation:rise .9s var(--ease) forwards; }
+@keyframes rise { to { opacity:1; transform:none; } }
+.why { position:absolute; left:96px; width:470px; font-size:24px; line-height:38px; color:rgba(22,21,20,.62); opacity:0; animation:fadein .8s .55s var(--ease) forwards; }
+.rule { position:absolute; left:96px; display:flex; align-items:center; gap:12px; opacity:0; animation:fadein .8s .9s var(--ease) forwards; white-space:nowrap; }
+.pill { font-size:22px; padding:8px 16px; border-radius:999px; background:var(--pc); transition:background .6s, border-color .6s; border:1.5px solid transparent; }
+.pill.miss { background:transparent; border:1.5px dashed rgba(22,21,20,.35); color:rgba(22,21,20,.5); }
+.pill.now { animation:pillpop .8s 1.2s var(--ease) both; }
+@keyframes pillpop { from { transform:scale(.8); } 60% { transform:scale(1.08); } to { transform:scale(1); } }
+.op { font-size:26px; opacity:.45; }
+.badge { width:52px; height:52px; border-radius:50%; display:grid; place-items:center; font-weight:700; font-size:22px; }
+.where { position:absolute; pointer-events:none; transition:opacity .6s; }
+.where .k { font:400 15px var(--mono); letter-spacing:.1em; opacity:.6; }
+.where .v { font-size:19px; font-weight:500; margin-top:2px; text-shadow:0 0 6px var(--paper), 0 0 2px var(--paper); }
+.where svg { position:absolute; left:-36px; top:16px; overflow:visible; }
+
+.meter { position:absolute; left:96px; top:922px; display:flex; gap:8px; }
+.meter div { width:96px; }
+.meter i { display:block; height:6px; border-radius:3px; background:rgba(22,21,20,.12); position:relative; overflow:hidden; }
+.meter i b { position:absolute; inset:0; transform:scaleX(0); transform-origin:0 50%; transition:transform 1s var(--ease); border-radius:3px; }
+.meter div.on i b { transform:scaleX(1); }
+.meter span { display:block; margin-top:12px; font-size:16px; opacity:.35; transition:opacity .6s, color .6s; }
+.meter div.on span { opacity:1; }
+.lvname { position:absolute; left:96px; top:972px; font-size:34px; font-weight:700; color:var(--lvtxt); transition:color .8s; white-space:nowrap; }
+.act { position:absolute; left:700px; top:962px; width:820px; font-size:26px; line-height:38px; font-weight:500; }
+.dots { position:absolute; right:150px; top:996px; display:flex; gap:16px; align-items:center; }
+.dots i { width:8px; height:8px; border-radius:50%; background:var(--ink); opacity:.2; transition:all .4s; cursor:pointer; }
+.dots i.done { opacity:1; } .dots i.cur { width:12px; height:12px; }
+.keys { position:absolute; right:96px; top:990px; display:flex; gap:6px; }
+.keys button { border:0; background:transparent; font:400 18px var(--mono); opacity:.5; cursor:pointer; padding:2px 4px; }
+.keys button:hover { opacity:1; }
+.bloom { position:absolute; inset:0; pointer-events:none; opacity:0; }
+.bloom.go { animation:bloom 2.2s var(--ease); }
+@keyframes bloom { 0% { opacity:0; } 25% { opacity:1; } 100% { opacity:0; } }
+.lvup { position:absolute; left:1240px; top:470px; width:0; height:0; pointer-events:none; }
+.lvup div { position:absolute; left:-180px; top:-180px; width:360px; height:360px; border-radius:50%; display:grid; place-items:center; font-weight:700; font-size:150px; opacity:0; }
+.lvup.go div { animation:lvup 2.4s var(--ease); }
+@keyframes lvup { 0% { opacity:0; transform:scale(.5); } 30% { opacity:1; transform:scale(1); } 70% { opacity:1; } 100% { opacity:0; transform:scale(1.15); } }
+
+/* cover + end */
+.title { position:absolute; left:90px; top:236px; font-size:104px; line-height:128px; font-weight:700; letter-spacing:-3px; }
+.title span { display:inline-block; opacity:0; transform:translateY(40px); animation:rise 1s var(--ease) forwards; }
+.sub { position:absolute; left:96px; top:490px; font-size:30px; line-height:46px; color:rgba(22,21,20,.62); opacity:0; animation:fadein 1s .9s forwards; }
+.legend { position:absolute; left:96px; top:668px; display:flex; gap:34px; opacity:0; animation:fadein 1s 1.3s forwards; }
+.legend div { display:flex; gap:14px; align-items:center; }
+.legend .o { width:60px; height:60px; border-radius:50%; animation:orb 3.6s ease-in-out infinite; }
+.legend div:nth-child(2) .o { animation-delay:.4s; } .legend div:nth-child(3) .o { animation-delay:.8s; } .legend div:nth-child(4) .o { animation-delay:1.2s; }
+@keyframes orb { 50% { transform:scale(1.12); } }
+.legend b { display:block; font-size:20px; } .legend small { font-size:15px; opacity:.6; }
+.start { position:absolute; left:96px; top:952px; display:flex; gap:40px; align-items:baseline; }
+.start button { border:0; background:var(--ink); color:var(--paper); font:700 20px var(--sans); padding:14px 28px; border-radius:999px; cursor:pointer; }
+.start span { font-size:18px; opacity:.55; }
+
+/* explore */
+.orb { position:absolute; left:60px; top:200px; width:260px; height:260px; border-radius:50%; display:grid; place-items:center; font-size:92px; font-weight:700; transition:background .8s; }
+.orb.go { animation:pillpop .9s var(--ease); }
+.xno { position:absolute; left:360px; top:276px; }
+.xname { position:absolute; left:360px; top:304px; font-size:44px; font-weight:700; color:var(--lvtxt); transition:color .8s; white-space:nowrap; }
+.xact { position:absolute; left:96px; top:492px; width:420px; font-size:30px; line-height:46px; font-weight:500; }
+.xwhy { position:absolute; left:96px; top:660px; width:600px; font-size:20px; line-height:32px; color:rgba(22,21,20,.7); }
+.xwhy .next { color:rgba(22,21,20,.5); }
+.xtools { position:absolute; left:96px; top:770px; display:flex; gap:10px; align-items:center; }
+.chip { border:1.5px solid rgba(22,21,20,.16); background:transparent; font:500 16px var(--sans); padding:7px 14px; border-radius:999px; cursor:pointer; color:rgba(22,21,20,.75); transition:all .3s; }
+.chip.on { background:#fff; border-color:transparent; color:var(--ink); box-shadow:0 1px 10px rgba(22,21,20,.08); }
+.chip.act2 { background:var(--ink); color:var(--paper); border-color:var(--ink); }
+.xtools .lab { font:400 14px var(--mono); letter-spacing:.12em; opacity:.5; margin-right:4px; }
+.latch { position:absolute; left:96px; top:820px; font-size:16px; color:rgba(22,21,20,.6); display:flex; gap:12px; align-items:center; transition:opacity .4s; }
+.dock { position:absolute; left:96px; top:846px; display:flex; gap:38px; }
+.dock .g > .mono { display:block; font-size:15px; margin-bottom:10px; }
+.dock .row { display:flex; gap:10px; }
+.card { width:101px; height:112px; border-radius:14px; border:1.5px solid rgba(22,21,20,.14); background:var(--paper); padding:12px 12px; cursor:pointer; position:relative; text-align:left; font-family:var(--sans); color:var(--ink); transition:background .3s, border-color .3s, transform .3s var(--ease), box-shadow .3s; }
+.card:hover { transform:translateY(-4px); }
+.card.on { background:#fff; border-color:transparent; box-shadow:0 4px 18px rgba(22,21,20,.07); }
+.card .n { font:400 15px var(--mono); opacity:.5; }
+.card .t { margin-top:10px; font-size:20px; line-height:28px; font-weight:500; }
+.card.on .t { font-weight:700; }
+.card .d { position:absolute; right:12px; top:12px; width:14px; height:14px; border-radius:50%; border:1.5px dashed rgba(22,21,20,.3); transition:all .4s; }
+.card .d.or { border-style:solid; }
+.card.on .d { border:0; width:30px; height:30px; right:5px; top:5px; }
+.tip { position:absolute; width:400px; background:#fff; border-radius:16px; padding:20px 22px; box-shadow:0 10px 40px rgba(22,21,20,.12); pointer-events:none; opacity:0; transform:translateY(8px); transition:opacity .25s, transform .25s; z-index:5; }
+.tip.show { opacity:1; transform:none; }
+.tip .f { font-size:24px; font-weight:700; line-height:34px; }
+.tip .w { margin-top:10px; font-size:17px; line-height:28px; color:rgba(22,21,20,.72); }
+.tip .s { margin-top:12px; font:400 13px var(--mono); opacity:.5; line-height:20px; }
+.note { position:absolute; right:96px; bottom:34px; font:400 13px var(--mono); opacity:.4; letter-spacing:.04em; }
+</style>
+</head>
+<body>
+<div id="stage">
+  <svg id="map" viewBox="0 0 1920 1080" xmlns="http://www.w3.org/2000/svg">
+    __DEFS__
+    <g id="cam"><g id="drift"><g transform="__MAPTF__">
+      __MAP__
+      <g id="glows"></g>
+      <g id="markers">__MARKERS__</g>
+    </g></g></g>
+    <g id="atms"></g>
+  </svg>
+  <div class="ui">
+    <div class="fadeL"></div><div class="fadeB"></div>
+    <div class="bloom" id="bloom"></div>
+    <div class="lvup" id="lvup"><div></div></div>
+    <div class="where" id="where"><svg width="40" height="40"><line x1="0" y1="34" x2="30" y2="4" stroke="#161514" stroke-width="1"/></svg><div class="k">在这里看</div><div class="v"></div></div>
+
+    <div class="topright">
+      <div class="seg"><button data-m="pres" class="on">演示</button><button data-m="explore">自由体验</button></div>
+      <a class="ghost" href="https://github.com/yexnnnnn/flood/tree/warning-card/v2/figma" target="_blank" rel="noopener">Figma 图层 ↗</a>
+    </div>
+
+    <div id="cover">
+      <div class="eyebrow mono">PROTOTYPE · 传统经验规则模型 · v0.2</div>
+      <div class="title" id="ctitle"></div>
+      <div class="sub">老人谚语描述的天象、天色和水情，<br>是这套四级预警的输入。</div>
+      <div class="legend" id="legend"></div>
+      <div class="start"><button id="go">开始 →</button><span>沈家庵村 · 拒马河谷 · 一场暴雨的 32 小时（示意场景）</span></div>
+    </div>
+
+    <div id="pres" class="hide">
+      <div class="eyebrow mono" id="pstep"></div>
+      <div class="group mono" id="pgroup"></div>
+      <div id="pbody"></div>
+    </div>
+
+    <div id="end" class="hide">
+      <div class="eyebrow mono">32 小时 · 8 个现象</div>
+      <div class="title" id="etitle"></div>
+      <div class="sub">每一步，都是老人说过的话。<br>换一组你看到的现象，试试会到哪一级。</div>
+      <div class="start" style="top:660px"><button id="toExplore">自由体验 →</button><span>按 E 切换 · ← 回到演示</span></div>
+    </div>
+
+    <div id="bar">
+      <div class="meter" id="meter"></div>
+      <div class="lvname" id="lvname"></div>
+      <div class="act" id="act"></div>
+      <div class="dots" id="dots"></div>
+      <div class="keys"><button id="prev" aria-label="上一步">←</button><button id="next" aria-label="下一步">→</button></div>
+    </div>
+
+    <div id="explore" class="hide">
+      <div class="eyebrow mono">自由体验 · 你看到了什么？点一下</div>
+      <div class="orb" id="orb"></div>
+      <div class="xno mono" id="xno"></div>
+      <div class="xname" id="xname"></div>
+      <div class="xact" id="xact"></div>
+      <div class="xwhy" id="xwhy"></div>
+      <div class="xtools" id="xtools"></div>
+      <div class="latch hide" id="latch"><span>现象少了，等级不会自动下降（时间连续性）。</span><button class="chip" id="reeval">重新评估</button></div>
+      <div class="dock" id="dock"></div>
+      <div class="note">观察位置为示意 · 非官方预警 · 以当地政府和气象部门发布为准</div>
+    </div>
+    <div class="tip" id="tip"><div class="f"></div><div class="w"></div><div class="s"></div></div>
+  </div>
+</div>
+<script>
+const DATA = __DATA__;
+const { SIG, RULES, LV, STEPS, GRP, REACH, MAP, ORDER } = DATA;
+const $ = s => document.querySelector(s), NS = 'http://www.w3.org/2000/svg';
+const stage = $('#stage');
+function fit() { const s = Math.min(innerWidth / 1920, innerHeight / 1080); stage.style.transform = `scale(${s}) translate(-50%,-50%)`; }
+addEventListener('resize', fit); fit();
+
+// ---------------------------------------------------------------- rules
+function evaluate(obs) {
+  let lv = 0; const fired = [];
+  for (const r of RULES) if (r.ids.every(i => obs.includes(i))) { fired.push(r); lv = Math.max(lv, r.lv); }
+  return { lv, fired };
+}
+function sigLevel(obs) { const o = {}; for (const r of evaluate(obs).fired) for (const i of r.ids) o[i] = Math.max(o[i] || 0, r.lv); return o; }
+function ruleFor(f, obs) {
+  const rs = RULES.filter(r => r.ids.includes(f)); if (!rs.length) return null;
+  const fired = rs.filter(r => r.ids.every(i => obs.includes(i)));
+  const r = fired.length ? fired.reduce((a, b) => b.lv > a.lv ? b : a) : rs[0];
+  return { ids: r.ids, lv: r.lv, fired: !!fired.length, op: r.ids.length === 1 ? 'OR' : 'AND' };
+}
+const label = i => (i.length === 2 ? i + ' ' : '') + SIG[i].s;
+const mx = x => MAP.x + x * MAP.s, my = y => MAP.y + y * MAP.s;
+function setLevelVars(lv) {
+  const L = LV[lv], st = document.documentElement.style;
+  st.setProperty('--lv', L.mid); st.setProperty('--lvtxt', L.txt); st.setProperty('--halo', L.halo);
+}
+const grad = (lv, a = 1) => { const L = LV[lv]; return `radial-gradient(circle, ${L.core} 0, ${L.mid} 13%, ${L.mid}80 40%, ${L.halo}2e 70%, ${L.halo}00 100%)`; };
+
+// ---------------------------------------------------------------- map drawing
+const glows = $('#glows'), atms = $('#atms');
+for (let i = 0; i < 5; i++) {
+  const c = document.createElementNS(NS, 'circle'); c.setAttribute('r', 1150); c.setAttribute('cx', 0); c.setAttribute('cy', 0);
+  c.setAttribute('fill', `url(#atm${i})`); c.setAttribute('class', 'atm'); c.style.opacity = 0; c.id = 'atm' + i; atms.appendChild(c);
+}
+function setAtm(lv, x, y) {
+  for (let i = 0; i < 5; i++) { const c = $('#atm' + i); c.style.transform = `translate(${x}px,${y}px)`; c.style.opacity = i === lv ? .75 : 0; }
+}
+const shown = {};   // id -> {lv, el}
+function glowEl(id, lv, big) {
+  const v = SIG[id], L = LV[lv], g = document.createElementNS(NS, 'g');
+  g.dataset.id = id;
+  if (REACH[id]) {
+    g.setAttribute('class', 'glow reach');
+    const layers = [[64, L.halo, .07], [44, L.halo, .12], [28, L.mid, .16], [16, L.mid, .32], [8, L.mid, .7], [2.6, L.core, 1]];
+    g.innerHTML = layers.map(([w, c, o]) => `<path class="draw" pathLength="1" d="${REACH[id]}" fill="none" stroke="${c}" stroke-opacity="${o}" stroke-width="${w}" stroke-linecap="round" stroke-linejoin="round"/>`).join('')
+      + `<path class="flow" d="${REACH[id]}" fill="none" stroke="#fff" stroke-width="2.4" stroke-linecap="round" stroke-dasharray="3 16"/>`;
+  } else if (v.type === 'veil') {
+    g.setAttribute('class', 'glow veil'); g.innerHTML = `<ellipse cx="500" cy="60" rx="620" ry="460" fill="url(#sky${lv})"/>`;
+  } else if (v.type === 'ring') {
+    g.setAttribute('class', 'glow ring');
+    g.innerHTML = [0, 1, 2].map(() => `<circle cx="${v.x}" cy="${v.y}" r="60" fill="none" stroke="${L.mid}" stroke-width="1.6"/>`).join('');
+  } else if (v.type === 'pt') {
+    g.setAttribute('class', 'glow pt'); const r = big ? 110 : (v.g === 'C' ? 62 : 82);
+    g.innerHTML = `<circle cx="${v.x}" cy="${v.y}" r="${r}" fill="url(#g${lv})"/>`;
+  } else return null;
+  return g;
+}
+// draw observed signs; only (re)create when the level of a sign changes, so animations stay calm
+function drawSigns(obs, focus) {
+  const lvof = sigLevel(obs);
+  for (const id of Object.keys(shown)) if (!obs.includes(id)) { shown[id].el.remove(); delete shown[id]; }
+  for (const id of obs) {
+    const lv = lvof[id] || 0, big = id === focus, cur = shown[id];
+    if (cur && cur.lv === lv && cur.big === big) continue;
+    const el = glowEl(id, lv, big); if (!el) continue;
+    if (!cur) el.classList.add('enter');
+    if (cur) cur.el.remove();
+    glows.appendChild(el); shown[id] = { lv, big, el };
+  }
+  document.querySelectorAll('.mk').forEach(m => {
+    const id = m.dataset.id;
+    m.classList.toggle('on', obs.includes(id) || (id === '14' && obs.includes('surge')));
+    m.classList.toggle('focus', id === focus);
+  });
+}
+function camera(s, fx, fy, tx = 1240, ty = 470) {
+  $('#cam').style.transform = s === 1 && fx == null ? 'none' : `translate(${tx - fx * s}px, ${ty - fy * s}px) scale(${s})`;
+}
+
+// ---------------------------------------------------------------- bottom bar
+const meter = $('#meter');
+meter.innerHTML = [1, 2, 3, 4].map(i => `<div data-i="${i}"><i><b style="background:${LV[i].mid}"></b></i><span style="color:${LV[i].txt}">${LV[i].k}</span></div>`).join('');
+let barLv = -1;
+function setBar(lv, flash) {
+  meter.querySelectorAll('div').forEach(d => d.classList.toggle('on', +d.dataset.i <= lv));
+  const L = LV[lv];
+  $('#lvname').textContent = lv ? `${L.k} · ${L.no} · ${L.name}` : '— · 暂无征兆';
+  $('#act').textContent = L.act;
+  setLevelVars(lv);
+  if (flash && lv > barLv && lv > 0) {
+    const b = $('#bloom'); b.style.background = `radial-gradient(ellipse 70% 70% at 64% 44%, ${L.halo}66, ${L.halo}00 70%)`;
+    b.classList.remove('go'); void b.offsetWidth; b.classList.add('go');
+    const u = $('#lvup'), d = u.firstElementChild; d.textContent = L.k; d.style.background = grad(lv);
+    u.classList.remove('go'); void u.offsetWidth; u.classList.add('go');
+  }
+  barLv = lv;
+}
+
+// ---------------------------------------------------------------- presentation
+const STORY = STEPS.map((s, k) => ({ ...s, k })).filter(s => !s.kind), TOTAL = STORY.length;
+let step = 0, mode = 'pres';
+$('#dots').innerHTML = STORY.map((s, i) => `<i data-k="${s.k}"></i>`).join('');
+$('#dots').onclick = e => { if (e.target.dataset.k) go(+e.target.dataset.k); };
+const chars = (s, d0 = 0, dd = 45) => [...s].map((c, i) => `<span style="animation-delay:${d0 + i * dd}ms">${c === ' ' ? '&nbsp;' : c}</span>`).join('');
+$('#ctitle').innerHTML = chars('看见什么，', 100) + '<br>' + chars('就升到哪一级。', 380);
+$('#etitle').innerHTML = chars('从蓝到红，', 100) + '<br>' + chars('全是看得见的。', 380);
+$('#legend').innerHTML = [1, 2, 3, 4].map(i => `<div><div class="o" style="background:${grad(i)}"></div><div><b style="color:${LV[i].txt}">${LV[i].k} · ${LV[i].no}</b><small>${LV[i].name}</small></div></div>`).join('');
+
+function show(id, on) { $(id).classList.toggle('hide', !on); }
+function go(k) {
+  step = Math.max(0, Math.min(STEPS.length - 1, k)); const S = STEPS[step];
+  history.replaceState(null, '', '#' + step);
+  show('#cover', S.kind === 'cover'); show('#end', S.kind === 'end'); show('#pres', !S.kind);
+  show('#bar', S.kind !== 'cover'); $('#where').style.opacity = 0;
+  $('#dots').querySelectorAll('i').forEach(d => { const kk = +d.dataset.k; d.classList.toggle('done', kk <= step); d.classList.toggle('cur', kk === step); });
+  if (S.kind === 'cover') { drawSigns([], null); camera(1); setAtm(0, 1180, 470); for (const c of [0,1,2,3,4]) $('#atm' + c).style.opacity = 0; barLv = 0; return; }
+  if (S.kind === 'end') { drawSigns(S.obs, null); camera(1); setAtm(S.lv, 1180, 470); setBar(S.lv, false); return; }
+  const f = S.focus, v = SIG[f], idx = STORY.findIndex(s => s.k === step) + 1;
+  drawSigns(S.obs, f);
+  // camera: points zoom in a little; reaches stay wide so the whole valley reads
+  let fx = mx(v.x), fy = my(v.y), sc = 1.22, tx = 1240, ty = 470;
+  if (REACH[f]) { fx = 1060; fy = 520; sc = 1.06; tx = 1180; ty = 500; }
+  camera(sc, fx, fy, tx, ty);
+  setAtm(S.lv, tx, ty);
+  // where to look
+  const w = $('#where');
+  w.style.left = (REACH[f] ? tx + (mx(v.x) - fx) * sc : tx) + 40 + 'px';
+  w.style.top = (REACH[f] ? ty + (my(v.y) - fy) * sc : ty) - 58 + 'px';
+  w.querySelector('.v').textContent = v.at + (v.h ? `  ▲ ${v.h} m` : '');
+  setTimeout(() => { if (step === S.k || STEPS[step] === S) w.style.opacity = 1; }, 1500);
+  // left column
+  $('#pstep').innerHTML = `${String(idx).padStart(2, '0')} / ${String(TOTAL).padStart(2, '0')}&emsp;&emsp;${S.t}`;
+  $('#pgroup').textContent = `${v.g} · ${GRP[v.g]}`;
+  const parts = v.f.split('，');
+  let html = `<div class="proverb">${parts.map((p, i) => chars(p + (i < parts.length - 1 ? '，' : ''), 120 + i * 260, 55)).join('<br>')}</div>`;
+  let y = 318 + 100 * parts.length + 26;
+  const why = v.why; html += `<div class="why" style="top:${y}px">${why}</div>`;
+  y += 38 * Math.ceil(why.length / 19) + 50;
+  const r = ruleFor(f, S.obs);
+  if (r) {
+    const prevObs = (STEPS[step - 1] && STEPS[step - 1].obs) || [];
+    html += `<div class="rule" style="top:${y}px">` + r.ids.map((i, n) => {
+      const have = S.obs.includes(i), now = have && !prevObs.includes(i);
+      return (n ? '<span class="op">+</span>' : '') + `<span class="pill${have ? '' : ' miss'}${now ? ' now' : ''}" style="--pc:${LV[r.fired ? r.lv : 0].halo}${r.fired ? 'aa' : '88'}">${label(i)}</span>`;
+    }).join('') + `<span class="op">→</span><span class="badge" style="background:${grad(r.lv)}">${LV[r.lv].k}</span>`
+      + `<span class="mono" style="font-size:15px">${r.op} · ${r.fired ? '已触发' : '等待组合'}</span></div>`;
+  }
+  $('#pbody').innerHTML = html;
+  setBar(S.lv, true);
+}
+$('#go').onclick = () => go(1);
+$('#prev').onclick = () => go(step - 1); $('#next').onclick = () => go(step + 1);
+$('#toExplore').onclick = () => setMode('explore');
+
+// ---------------------------------------------------------------- explore
+let xobs = [], latched = 0;
+const dock = $('#dock');
+dock.innerHTML = 'ABC'.split('').map(g => `<div class="g"><span class="mono">${g} · ${GRP[g]}</span><div class="row">` +
+  ORDER.map(i => [i, SIG[i]]).filter(([i, s]) => s.g === g).map(([i, s]) => {
+    const r = ruleFor(i, []), t = s.s.length > 3 ? [s.s.slice(0, Math.ceil(s.s.length / 2)), s.s.slice(Math.ceil(s.s.length / 2))] : [s.s];
+    return `<button class="card" data-id="${i}"><div class="n">${i}</div><div class="d${r && r.op === 'OR' ? ' or' : ''}"></div><div class="t">${t.join('<br>')}</div></button>`;
+  }).join('') + '</div></div>').join('');
+$('#xtools').innerHTML = `<span class="lab">D · ${GRP.D}</span>` + ORDER.map(i => [i, SIG[i]]).filter(([i, s]) => s.g === 'D').map(([i, s]) => `<button class="chip" data-id="${i}">${s.s}</button>`).join('')
+  + `<button class="chip act2" id="clear" style="margin-left:18px">清空</button>`;
+function toggle(id) { xobs = xobs.includes(id) ? xobs.filter(i => i !== id) : [...xobs, id]; renderX(true); }
+dock.onclick = e => { const c = e.target.closest('.card'); if (c) toggle(c.dataset.id); };
+$('#xtools').onclick = e => { const c = e.target.closest('.chip'); if (!c) return; if (c.id === 'clear') { xobs = []; latched = 0; renderX(true); } else toggle(c.dataset.id); };
+$('#reeval').onclick = () => { latched = evaluate(xobs).lv; renderX(true); };
+document.querySelectorAll('.mk').forEach(m => {
+  m.addEventListener('click', e => { if (mode !== 'explore') return; e.stopPropagation(); toggle(m.dataset.id); });
+  m.addEventListener('mouseenter', () => mode === 'explore' && tipFor(m.dataset.id, m.getBoundingClientRect()));
+  m.addEventListener('mouseleave', hideTip);
+});
+let xlv = -1;
+function renderX(anim) {
+  const { lv: cur, fired } = evaluate(xobs); latched = Math.max(latched, cur); const lv = latched, L = LV[lv];
+  drawSigns(xobs, null); setAtm(lv, 1180, 460);
+  const lvof = sigLevel(xobs);
+  dock.querySelectorAll('.card').forEach(c => {
+    const id = c.dataset.id, on = xobs.includes(id); c.classList.toggle('on', on);
+    c.querySelector('.d').style.background = on ? grad(lvof[id] || 0) : 'none';
+  });
+  $('#xtools').querySelectorAll('.chip[data-id]').forEach(c => c.classList.toggle('on', xobs.includes(c.dataset.id)));
+  const o = $('#orb'); o.style.background = grad(lv); o.textContent = L.k;
+  if (anim && lv !== xlv) { o.classList.remove('go'); void o.offsetWidth; o.classList.add('go'); }
+  $('#xno').textContent = lv ? L.no : '—'; $('#xname').textContent = L.name; $('#xact').textContent = L.act;
+  const top = fired.filter(r => r.lv === cur && cur > 0);
+  let why = top.length ? '触发&ensp;' + top.map(r => r.ids.map(label).join(' + ')).join('&ensp;·&ensp;') + `&ensp;→&ensp;<b style="color:${LV[cur].txt}">${LV[cur].k}</b>` : (xobs.length ? '已记下，等待组合' : '');
+  // the nearest step up: a rule above the current level that is missing exactly one sign
+  const near = RULES.filter(r => r.lv > lv && r.ids.length > 1 && r.ids.filter(i => !xobs.includes(i)).length === 1 && r.ids.some(i => xobs.includes(i)));
+  if (near.length) { const r = near.reduce((a, b) => b.lv > a.lv ? b : a), miss = r.ids.find(i => !xobs.includes(i)); why += `<br><span class="next">再看到「${label(miss)}」→ ${LV[r.lv].k}</span>`; }
+  $('#xwhy').innerHTML = why;
+  $('#latch').classList.toggle('hide', !(cur < latched));
+  setLevelVars(lv); xlv = lv;
+}
+const tip = $('#tip');
+function tipFor(id, rect) {
+  const v = SIG[id], sr = stage.getBoundingClientRect(), s = sr.width / 1920;
+  tip.querySelector('.f').textContent = v.f; tip.querySelector('.w').textContent = v.why;
+  tip.querySelector('.s').innerHTML = `在这里看 · ${v.at}<br>来源 · ${v.src}`;
+  let x = (rect.left - sr.left) / s + rect.width / s / 2 - 200, y = (rect.top - sr.top) / s - 16;
+  x = Math.max(24, Math.min(1920 - 424, x));
+  tip.style.left = x + 'px'; tip.style.top = y + 'px'; tip.style.transform = 'translateY(-100%)'; tip.classList.add('show');
+  document.querySelectorAll('.mk').forEach(m => m.classList.toggle('hot', m.dataset.id === id));
+}
+function hideTip() { tip.classList.remove('show'); document.querySelectorAll('.mk.hot').forEach(m => m.classList.remove('hot')); }
+dock.addEventListener('mouseover', e => { const c = e.target.closest('.card'); if (c) tipFor(c.dataset.id, c.getBoundingClientRect()); });
+dock.addEventListener('mouseleave', hideTip);
+
+// ---------------------------------------------------------------- modes + keys
+function setMode(m) {
+  mode = m; document.body.classList.toggle('explore', m === 'explore');
+  document.querySelectorAll('.seg button').forEach(b => b.classList.toggle('on', b.dataset.m === m));
+  hideTip();
+  if (m === 'explore') {
+    ['#cover', '#pres', '#end', '#bar'].forEach(s => show(s, false)); show('#explore', true); $('#where').style.opacity = 0;
+    camera(.9, 1180, 520, 1180, 500); history.replaceState(null, '', '#explore'); renderX(false);
+  } else { show('#explore', false); go(step); }
+}
+document.querySelectorAll('.seg button').forEach(b => b.onclick = () => setMode(b.dataset.m));
+addEventListener('keydown', e => {
+  if (e.key === 'e' || e.key === 'E') return setMode(mode === 'explore' ? 'pres' : 'explore');
+  if (mode === 'explore') { if (e.key === 'Escape') setMode('pres'); return; }
+  if (['ArrowRight', ' ', 'PageDown', 'Enter'].includes(e.key)) { e.preventDefault(); go(step + 1); }
+  if (['ArrowLeft', 'PageUp', 'Backspace'].includes(e.key)) { e.preventDefault(); go(step - 1); }
+  if (e.key === 'Home') go(0); if (e.key === 'End') go(STEPS.length - 1);
+});
+$('#map').addEventListener('click', () => { if (mode === 'pres' && step > 0) go(step + 1); });
+let tx0 = null; addEventListener('touchstart', e => tx0 = e.touches[0].clientX);
+addEventListener('touchend', e => { if (tx0 == null || mode !== 'pres') return; const d = e.changedTouches[0].clientX - tx0; if (Math.abs(d) > 50) go(step + (d < 0 ? 1 : -1)); tx0 = null; });
+window.go = go; window.setMode = setMode; window.toggle = toggle;
+
+const h = location.hash.slice(1);
+if (h === 'explore') { xobs = ['01', '03', '09', '11']; setMode('explore'); } else go(+h || 0);
+</script>
+</body>
+</html>

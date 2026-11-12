@@ -1,0 +1,508 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<title>__TITLE__</title>
+<style>
+html, body { margin:0; height:100%; overflow:hidden; background:radial-gradient(120% 90% at 50% 40%, #f3f4f1 0%, #e3e6e1 60%, #d6dad4 100%); }
+html.clear, html.clear body { background:transparent; }
+canvas { position:fixed; inset:0; width:100%; height:100%; display:block; touch-action:none; cursor:grab; -webkit-user-select:none; user-select:none; -webkit-tap-highlight-color:transparent; }
+canvas.drag { cursor:grabbing; }
+#load { position:fixed; left:50%; top:50%; width:44px; height:44px; margin:-22px; border-radius:50%; border:2px solid rgba(60,70,60,.18); border-top-color:rgba(60,70,60,.6); animation:r 1s linear infinite; transition:opacity .5s; }
+@keyframes r { to { transform:rotate(360deg); } }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="load"></div>
+<script>
+'use strict';
+const STYLE = '__STYLE__', REAL = STYLE === 'real';
+const DATA = __DATA__;
+const HB64 = '__HEIGHTS__', MASK = '__MASK__', GROUND = '__GROUND__';
+const Q = new URLSearchParams(location.search);
+if (Q.get('bg') === 'none' || Q.get('bg') === 'transparent') document.documentElement.classList.add('clear');
+else if (Q.get('bg')) document.documentElement.style.background = document.body.style.background = '#' + Q.get('bg').replace('#', '');
+const SPIN = Q.get('spin') !== '0';
+
+// ------------------------------------------------------------------ math
+const clamp = (v, a, b) => Math.max(a, Math.min(b, v)), lerp = (a, b, t) => a + (b - a) * t;
+const norm = v => { const l = Math.hypot(v[0], v[1], v[2]) || 1; return [v[0] / l, v[1] / l, v[2] / l]; };
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]];
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]];
+function mul(a, b) { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = s; } return o; }
+function persp(fy, asp, n, f) { const t = 1 / Math.tan(fy / 2), o = new Float32Array(16); o[0] = t / asp; o[5] = t; o[10] = (f + n) / (n - f); o[11] = -1; o[14] = 2 * f * n / (n - f); return o; }
+function ortho(l, r, b, t, n, f) { const o = new Float32Array(16); o[0] = 2 / (r - l); o[5] = 2 / (t - b); o[10] = -2 / (f - n); o[12] = -(r + l) / (r - l); o[13] = -(t + b) / (t - b); o[14] = -(f + n) / (f - n); o[15] = 1; return o; }
+function look(e, c, up) { const z = norm(sub(e, c)), x = norm(cross(up, z)), y = cross(z, x);
+  return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -(x[0] * e[0] + x[1] * e[1] + x[2] * e[2]), -(y[0] * e[0] + y[1] * e[1] + y[2] * e[2]), -(z[0] * e[0] + z[1] * e[1] + z[2] * e[2]), 1]); }
+let seed = 20261024; const rnd = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+const hash1 = k => { let h = Math.imul(k ^ 0x9e3779b9, 2654435761); h ^= h >>> 15; h = Math.imul(h, 2246822519); return ((h ^ (h >>> 13)) >>> 0) / 4294967296; };
+
+// ------------------------------------------------------------------ data
+const HALF = DATA.half, NN = DATA.n, ST = DATA.step, HMIN = DATA.hmin;
+const HG = (() => { const b = atob(HB64), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  const v = new Uint16Array(u.buffer), h = new Float32Array(v.length); for (let i = 0; i < v.length; i++) h[i] = HMIN + v[i] / 10; return h; })();
+const BASE = HMIN - 70;                            // bottom of the plinth
+const RAD = 170;                                   // corner radius of the tile
+function hAt(x, z) { const fx = clamp((x + HALF) / ST, 0, NN - 1.001), fz = clamp((z + HALF) / ST, 0, NN - 1.001), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, k = j * NN + i;
+  return lerp(lerp(HG[k], HG[k + 1], tx), lerp(HG[k + NN], HG[k + NN + 1], tx), tz); }
+function sdRR(x, z, inset) { const b = HALF - inset - RAD, qx = Math.abs(x) - b, qz = Math.abs(z) - b;
+  return Math.hypot(Math.max(qx, 0), Math.max(qz, 0)) + Math.min(Math.max(qx, qz), 0) - RAD; }
+function rivNear(x, z) { const P = DATA.rivlo; let best = 1e9, v = P[0][2];
+  for (let k = 1; k < P.length; k++) { const a = P[k - 1], b = P[k], dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz || 1, t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / L, 0, 1);
+    const d = Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); if (d < best) { best = d; v = a[2] + (b[2] - a[2]) * t; } }
+  return [best, v]; }
+
+// ------------------------------------------------------------------ GL
+const cv = document.getElementById('gl');
+const gl = cv.getContext('webgl2', { antialias: true, alpha: true, premultipliedAlpha: true, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+const PHONE = Math.min(innerWidth, innerHeight) < 700 || matchMedia('(pointer: coarse)').matches;
+function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; }
+function prog(vs, fs) { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name.replace('[0]', '')] = gl.getUniformLocation(p, a.name); }
+  return { p, u }; }
+function vao(attrs, idx) { const v = gl.createVertexArray(); gl.bindVertexArray(v);
+  attrs.forEach(([loc, data, size, div]) => { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); if (div) gl.vertexAttribDivisor(loc, div); });
+  if (idx) { const b = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW); }
+  gl.bindVertexArray(null); return v; }
+
+// ------------------------------------------------------------------ shaders
+const HEAD = `#version 300 es
+precision highp float; precision highp sampler2DShadow;
+`;
+const LIGHT = `
+uniform sampler2DShadow uSM; uniform mat4 uLVP; uniform vec3 uL, uEye, uSunC, uSky, uGnd; uniform float uSMs, uExp;
+const vec2 OFF[8] = vec2[8](vec2(-.94,-.40),vec2(.95,-.77),vec2(-.09,-.93),vec2(.34,.29),vec2(-.92,.46),vec2(.54,.88),vec2(-.27,.97),vec2(.44,-.52));
+float shadowAt(vec3 wp, vec3 n) {
+  vec4 lp = uLVP * vec4(wp + n * .9 + uL * .6, 1.); vec3 c = lp.xyz / lp.w * .5 + .5;
+  if (c.x < 0. || c.x > 1. || c.y < 0. || c.y > 1.) return 1.;
+  float s = 0.; for (int i = 0; i < 8; i++) s += texture(uSM, vec3(c.xy + OFF[i] * uSMs * 1.7, c.z - .00012));
+  return s / 8.; }
+vec3 toLin(vec3 c) { return c * c * (c * .3 + .7); }
+vec3 tone(vec3 c) { c *= uExp; c = (c * (2.51 * c + .03)) / (c * (2.43 * c + .59) + .14); return pow(clamp(c, 0., 1.), vec3(1. / 2.2)); }
+vec3 shade(vec3 alb, vec3 n, vec3 wp, float ao, float wrap, out float sh) {
+  sh = shadowAt(wp, n); float d = max((dot(n, uL) + wrap) / (1. + wrap), 0.);
+  vec3 amb = mix(uGnd, uSky, n.y * .5 + .5); return alb * (amb * ao + uSunC * d * sh * mix(1., ao, .35)); }
+float h12(vec2 p) { vec3 q = fract(vec3(p.xyx) * .1031); q += dot(q, q.yzx + 33.33); return fract((q.x + q.y) * q.z); }
+float vn2(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(h12(i), h12(i + vec2(1, 0)), f.x), mix(h12(i + vec2(0, 1)), h12(i + vec2(1, 1)), f.x), f.y); }
+float h13(vec3 p) { p = fract(p * .1031); p += dot(p, p.zyx + 31.32); return fract((p.x + p.y) * p.z); }
+float vn3(vec3 p) { vec3 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(mix(h13(i), h13(i + vec3(1,0,0)), f.x), mix(h13(i + vec3(0,1,0)), h13(i + vec3(1,1,0)), f.x), f.y),
+             mix(mix(h13(i + vec3(0,0,1)), h13(i + vec3(1,0,1)), f.x), mix(h13(i + vec3(0,1,1)), h13(i + vec3(1,1,1)), f.x), f.y), f.z); }
+`;
+const SDF = `uniform float uHalf, uRad;
+float sdRR(vec2 p, float inset) { vec2 q = abs(p) - vec2(uHalf - inset - uRad); return length(max(q, 0.)) + min(max(q.x, q.y), 0.) - uRad; }
+`;
+
+const TER = prog(HEAD + `
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in float aAO;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out float vAO;
+void main() { vP = aP; vN = aN; vAO = aAO; gl_Position = uVP * vec4(aP, 1.); }`,
+HEAD + LIGHT + SDF + `
+uniform sampler2D uG, uAO, uMK; uniform int uReal;
+in vec3 vP; in vec3 vN; in float vAO; out vec4 o;
+void main() {
+  if (sdRR(vP.xz, 0.) > 0.) discard;
+  vec2 uv = (vP.xz + uHalf) / (2. * uHalf); vec3 n = normalize(vN);
+  float ao = texture(uAO, uv).r * vAO, sh; vec3 alb;
+  if (uReal == 1) {
+    alb = toLin(texture(uG, uv).rgb);
+    float l = dot(alb, vec3(.3, .59, .11)); alb = mix(vec3(l), alb, .9) * .82;     // calmer than the raw paint
+    float g = vn2(vP.xz * .45) * .55 + vn2(vP.xz * 1.6) * .45; alb *= .9 + .2 * g;
+  } else {
+    vec3 mk = texture(uMK, uv).rgb;
+    alb = vec3(.86, .855, .83);
+    float h = vP.y / 10., w = fwidth(h), l = 1. - smoothstep(0., w * 1.3, abs(fract(h + .5) - .5));
+    float h5 = vP.y / 50., w5 = fwidth(h5), l5 = 1. - smoothstep(0., w5 * 1.6, abs(fract(h5 + .5) - .5));
+    alb *= 1. - .07 * l - .12 * l5;
+    alb *= 1. - .05 * smoothstep(.35, .8, mk.g);           // roads and yards, just a breath darker
+  }
+  vec3 c = shade(alb, n, vP, ao, 0., sh);
+  o = vec4(tone(c), 1.);
+}`);
+
+// generic lit mesh (houses)
+const LIT = prog(HEAD + `
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec3 aC;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out vec3 vC;
+void main() { vP = aP; vN = aN; vC = aC; gl_Position = uVP * vec4(aP, 1.); }`,
+HEAD + LIGHT + `
+in vec3 vP; in vec3 vN; in vec3 vC; out vec4 o;
+void main() { vec3 n = normalize(vN); float sh;
+  vec3 c = shade(toLin(vC), n, vP, 1., .1, sh);
+  o = vec4(tone(c), 1.); }`);
+
+// instanced tree crowns
+const TRE = prog(HEAD + `
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec4 iP; layout(location=3) in vec3 iC; layout(location=4) in vec2 iS;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out vec3 vC; out float vY;
+void main() { float c = cos(iS.y), s = sin(iS.y); mat2 R = mat2(c, -s, s, c);
+  vec3 p = aP, n = aN; p.xz = R * p.xz; n.xz = R * n.xz; p.y *= iS.x; n.y /= iS.x;
+  vP = iP.xyz + p * iP.w; vN = normalize(n); vC = iC; vY = aP.y; gl_Position = uVP * vec4(vP, 1.); }`,
+HEAD + LIGHT + `
+in vec3 vP; in vec3 vN; in vec3 vC; in float vY; out vec4 o; uniform int uReal;
+void main() { vec3 n = normalize(vN), V = normalize(uEye - vP); float sh;
+  float leaf = vn3(vP * .9) * .6 + vn3(vP * 2.3) * .4;
+  vec3 alb = toLin(vC) * (uReal == 1 ? .74 + .5 * leaf : .9 + .14 * leaf);
+  float ao = mix(.32, 1., smoothstep(-.95, .7, vY));
+  vec3 c = shade(alb, n, vP, ao, .45, sh);
+  c += alb * uSunC * .22 * pow(1. - max(dot(n, V), 0.), 2.) * sh * max(dot(-V, uL) * .5 + .5, 0.);
+  o = vec4(tone(c), 1.); }`);
+
+// river and ponds
+const WAT = prog(HEAD + `
+layout(location=0) in vec3 aP; layout(location=1) in float aB; layout(location=2) in float aM;
+uniform mat4 uVP; out vec3 vP; out float vD; out float vM;
+void main() { vP = aP; vD = aP.y - aB; vM = aM; gl_Position = uVP * vec4(aP, 1.); }`,
+HEAD + LIGHT + SDF + `
+in vec3 vP; in float vD; in float vM; out vec4 o; uniform float uT; uniform int uReal;
+void main() {
+  if (sdRR(vP.xz, 0.) > 0.) discard;
+  vec2 q = vP.xz; float t = uT;
+  vec2 g = vec2(vn2(q * .35 + vec2(t * .35, t * .2)) - vn2(q * .35 + vec2(1.7, 0) + vec2(t * .35, t * .2)),
+                vn2(q * .35 + vec2(t * .35, t * .2)) - vn2(q * .35 + vec2(0, 1.7) + vec2(t * .35, t * .2)));
+  g += .35 * vec2(vn2(q * 1.3 - t * .6) - vn2(q * 1.3 + vec2(.6, 0) - t * .6), vn2(q * 1.3 - t * .6) - vn2(q * 1.3 + vec2(0, .6) - t * .6));
+  float fd = clamp(length(uEye - vP) / 900., 0., 1.);                       // calmer with distance, no glitter
+  vec3 n = normalize(vec3(g.x * .09 * (1. - .6 * fd), 1., g.y * .09 * (1. - .6 * fd))), V = normalize(uEye - vP);
+  float sh = shadowAt(vP, vec3(0, 1, 0));
+  float d = clamp(vD / 2.2, 0., 1.);
+  vec3 shallow = uReal == 1 ? vec3(.30, .62, .52) : vec3(.62, .72, .76);
+  vec3 deep    = uReal == 1 ? vec3(.04, .25, .27) : vec3(.42, .55, .62);
+  vec3 body = mix(shallow, deep, smoothstep(0., 1., d));
+  vec3 col = body * (mix(uGnd, uSky, .8) * .55 + uSunC * .32 * sh);
+  float fr = .03 + .97 * pow(1. - max(dot(n, V), 0.), 5.);
+  vec3 sky = uSky * 1.25;
+  col = mix(col, sky, fr * .6);
+  vec3 H = normalize(uL + V); col += uSunC * (pow(max(dot(n, H), 0.), 90.) * .35 + pow(max(dot(n, H), 0.), 12.) * .03) * sh;
+  float a = smoothstep(.0, .6, vD) * smoothstep(.02, .3, vM);
+  a = mix(a, a * .95, d) * (uReal == 1 ? .92 : .88);
+  o = vec4(tone(col) * a, a);
+}`);
+
+// plinth sides
+const SIDE = prog(HEAD + `
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in float aT;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out float vT;
+void main() { vP = aP; vN = aN; vT = aT; gl_Position = uVP * vec4(aP, 1.); }`,
+HEAD + LIGHT + `
+in vec3 vP; in vec3 vN; in float vT; out vec4 o; uniform int uReal; uniform float uBase;
+void main() { vec3 n = normalize(vN); float dep = vT - vP.y, sh; vec3 alb;
+  if (uReal == 1) {
+    float band = vn2(vec2(dep * .22, (vP.x + vP.z) * .004)) * .6 + vn2(vec2(dep * .9, (vP.x - vP.z) * .02)) * .4;
+    alb = mix(vec3(.40, .29, .19), vec3(.30, .21, .14), band);
+    alb = mix(alb, vec3(.22, .16, .11), smoothstep(30., 110., dep));
+    alb = mix(vec3(.16, .30, .10), alb, smoothstep(.6, 2.2, dep));             // grass lip
+    alb = toLin(alb);
+  } else alb = vec3(.80, .795, .77);
+  float ao = mix(.75, 1., smoothstep(0., 25., vP.y - uBase));
+  vec3 c = shade(alb, n, vP, ao, .2, sh);
+  o = vec4(tone(c), 1.); }`);
+
+// soft contact shadow of the tile on the page
+const FLO = prog(HEAD + `
+layout(location=0) in vec3 aP; uniform mat4 uVP; out vec3 vP;
+void main() { vP = aP; gl_Position = uVP * vec4(aP, 1.); }`,
+HEAD + SDF + `
+in vec3 vP; out vec4 o; uniform vec2 uOff;
+void main() { float d1 = sdRR(vP.xz - uOff, 0.), d0 = sdRR(vP.xz, 0.);
+  float a = .30 * (1. - smoothstep(-260., 520., d1)) + .28 * (1. - smoothstep(-10., 90., d0));
+  o = vec4(0, 0, 0, clamp(a, 0., .6)); }`);
+
+// depth only (shadow map)
+const DEP = prog(HEAD + `layout(location=0) in vec3 aP; uniform mat4 uVP; void main() { gl_Position = uVP * vec4(aP, 1.); }`, HEAD + `void main() {}`);
+const DEPI = prog(HEAD + `layout(location=0) in vec3 aP; layout(location=2) in vec4 iP; layout(location=4) in vec2 iS; uniform mat4 uVP;
+void main() { float c = cos(iS.y), s = sin(iS.y); vec3 p = aP; p.xz = mat2(c, -s, s, c) * p.xz; p.y *= iS.x; gl_Position = uVP * vec4(iP.xyz + p * iP.w, 1.); }`, HEAD + `void main() {}`);
+
+// ------------------------------------------------------------------ scene
+const SUN = norm([-.64, .50, .58]);                     // late-morning sun from the south-west, about 30° up
+const LOOKS = REAL
+  ? { sun: [2.05, 1.92, 1.70], sky: [.40, .50, .64], gnd: [.20, .22, .14], exp: .92 }
+  : { sun: [1.80, 1.74, 1.64], sky: [.40, .43, .49], gnd: [.26, .25, .24], exp: .92 };
+let MK = null, MW = 0;                                  // mask pixels: R water, G obstacle, B forest
+const mAt = (x, z, c) => { const i = clamp(Math.floor((x + HALF) / (2 * HALF) * MW), 0, MW - 1), j = clamp(Math.floor((z + HALF) / (2 * HALF) * MW), 0, MW - 1); return MK[(j * MW + i) * 4 + c] / 255; };
+let WLV = null;                                         // water level per mesh vertex (NaN = no water)
+let terV, terN, watV, watN, sideV, sideN, houV, houN, treV, treN, treI, floV, aoTex, gTex, mTex;
+
+function carve() {
+  // water level: the river surface near the Juma centreline, the local floor for ponds; then cut the bed below it
+  const n = NN * NN; WLV = new Float32Array(n).fill(NaN); const WM = new Float32Array(n);
+  for (let j = 0; j < NN; j++) for (let i = 0; i < NN; i++) { const k = j * NN + i, x = -HALF + i * ST, z = -HALF + j * ST, m = mAt(x, z, 0); WM[k] = m; }
+  for (let j = 0; j < NN; j++) for (let i = 0; i < NN; i++) { const k = j * NN + i; let mm = 0;
+    for (let b = -1; b <= 1; b++) for (let a = -1; a <= 1; a++) { const jj = j + b, ii = i + a; if (jj >= 0 && ii >= 0 && jj < NN && ii < NN) mm = Math.max(mm, WM[jj * NN + ii]); }
+    if (mm < .02) continue;
+    const x = -HALF + i * ST, z = -HALF + j * ST, [d, lv] = rivNear(x, z);
+    let L = lv, lo = 1e9, cnt = 0;
+    for (let b = -4; b <= 4; b++) for (let a = -4; a <= 4; a++) { const jj = j + b, ii = i + a; if (jj >= 0 && ii >= 0 && jj < NN && ii < NN && WM[jj * NN + ii] > .3) { lo = Math.min(lo, HG[jj * NN + ii]); cnt++; } }
+    if (cnt < 48 && d > 25) continue;                                               // tiny pools and tanks: leave the ground alone
+    if (d > 140) L = (lo < 1e8 ? lo : HG[k]) + .5;
+    else if (lo > lv + 4 && d > 25) continue;                                       // a mapped puddle above the river, not the river itself
+    WLV[k] = L;
+  }
+  for (let k = 0; k < n; k++) { if (isNaN(WLV[k])) continue; const m = WM[k];
+    if (m > .05) { const t = clamp((m - .05) / .75, 0, 1), s = t * t * (3 - 2 * t); HG[k] = Math.min(HG[k], WLV[k] + .3 - 2.6 * s); } }
+  return WM;
+}
+
+function buildTerrain(WM) {
+  const n = NN * NN, P = new Float32Array(n * 3), Nn = new Float32Array(n * 3), AO = new Float32Array(n);
+  for (let j = 0; j < NN; j++) for (let i = 0; i < NN; i++) { const k = j * NN + i;
+    P[k * 3] = -HALF + i * ST; P[k * 3 + 1] = HG[k]; P[k * 3 + 2] = -HALF + j * ST;
+    const hl = HG[j * NN + Math.max(0, i - 1)], hr = HG[j * NN + Math.min(NN - 1, i + 1)], hu = HG[Math.max(0, j - 1) * NN + i], hd = HG[Math.min(NN - 1, j + 1) * NN + i];
+    const nn = norm([hl - hr, 2 * ST, hu - hd]); Nn[k * 3] = nn[0]; Nn[k * 3 + 1] = nn[1]; Nn[k * 3 + 2] = nn[2];
+    // cavity: ground lower than its 30 m and 80 m surroundings reads darker
+    let s = 0, c = 0; for (const R of [6, 16]) for (let a = 0; a < 8; a++) { const ii = clamp(i + Math.round(Math.cos(a * .785) * R), 0, NN - 1), jj = clamp(j + Math.round(Math.sin(a * .785) * R), 0, NN - 1); s += HG[jj * NN + ii] - HG[k]; c++; }
+    AO[k] = clamp(1 - Math.max(0, s / c) * .012, .6, 1);
+  }
+  const idx = new Uint32Array((NN - 1) * (NN - 1) * 6); let t = 0;
+  for (let j = 0; j < NN - 1; j++) for (let i = 0; i < NN - 1; i++) { const a = j * NN + i, b = a + 1, c = a + NN, d = c + 1; idx.set([a, c, b, b, c, d], t); t += 6; }
+  terV = vao([[0, P, 3], [1, Nn, 3], [2, AO, 1]], idx); terN = idx.length;
+  // water sheet: flat at the level, draped onto the ground where the bank is higher (it fades out there)
+  const WP = new Float32Array(n * 3), WB = new Float32Array(n), WMm = new Float32Array(n), wi = [];
+  for (let k = 0; k < n; k++) { const L = isNaN(WLV[k]) ? HG[k] : WLV[k]; WP[k * 3] = P[k * 3]; WP[k * 3 + 1] = Math.max(L, HG[k] + .02); WP[k * 3 + 2] = P[k * 3 + 2]; WB[k] = HG[k]; WMm[k] = WM[k]; }
+  for (let j = 0; j < NN - 1; j++) for (let i = 0; i < NN - 1; i++) { const a = j * NN + i, b = a + 1, c = a + NN, d = c + 1;
+    if (isNaN(WLV[a]) || isNaN(WLV[b]) || isNaN(WLV[c]) || isNaN(WLV[d])) continue; wi.push(a, c, b, b, c, d); }
+  watV = vao([[0, WP, 3], [1, WB, 1], [2, WMm, 1]], new Uint32Array(wi)); watN = wi.length;
+  // plinth: walls along the rounded rectangle
+  const pts = [], b = HALF - RAD;
+  const seg = (x0, z0, x1, z1) => { const L = Math.hypot(x1 - x0, z1 - z0), m = Math.ceil(L / 4); for (let s = 0; s < m; s++) pts.push([lerp(x0, x1, s / m), lerp(z0, z1, s / m)]); };
+  // clockwise in screen terms: south edge (z = +HALF) west -> east, then the SE corner, east edge, ...
+  seg(-b, HALF, b, HALF); for (let s = 0; s < 40; s++) { const a = Math.PI / 2 - s / 40 * Math.PI / 2; pts.push([b + Math.cos(a) * RAD, b + Math.sin(a) * RAD]); }
+  seg(HALF, b, HALF, -b); for (let s = 0; s < 40; s++) { const a = -s / 40 * Math.PI / 2; pts.push([b + Math.cos(a) * RAD, -b + Math.sin(a) * RAD]); }
+  seg(b, -HALF, -b, -HALF); for (let s = 0; s < 40; s++) { const a = -Math.PI / 2 - s / 40 * Math.PI / 2; pts.push([-b + Math.cos(a) * RAD, -b + Math.sin(a) * RAD]); }
+  seg(-HALF, -b, -HALF, b); for (let s = 0; s < 40; s++) { const a = Math.PI - s / 40 * Math.PI / 2; pts.push([-b + Math.cos(a) * RAD, b + Math.sin(a) * RAD]); }
+  const SP = [], SN = [], STt = [];
+  for (let k = 0; k < pts.length; k++) {
+    const p0 = pts[k], p1 = pts[(k + 1) % pts.length];
+    const t0 = hAt(p0[0] * .9995, p0[1] * .9995), t1 = hAt(p1[0] * .9995, p1[1] * .9995);
+    const nx = (p0[0] + p1[0]) / 2, nz = (p0[1] + p1[1]) / 2, tx = p1[0] - p0[0], tz = p1[1] - p0[1];
+    let n = norm([tz, 0, -tx]); if (n[0] * nx + n[2] * nz < 0) n = [-n[0], 0, -n[2]];
+    const A = [p0[0], t0, p0[1]], B = [p1[0], t1, p1[1]], C = [p1[0], BASE, p1[1]], D = [p0[0], BASE, p0[1]];
+    for (const [v, tp] of [[A, t0], [D, t0], [B, t1], [B, t1], [D, t0], [C, t1]]) { SP.push(...v); SN.push(...n); STt.push(tp); }
+  }
+  sideV = vao([[0, new Float32Array(SP), 3], [1, new Float32Array(SN), 3], [2, new Float32Array(STt), 1]]); sideN = SP.length / 3;
+  const F = 3200, y = BASE - .3;
+  floV = vao([[0, new Float32Array([-F, y, -F, F, y, -F, F, y, F, -F, y, -F, F, y, F, -F, y, F]), 3]]);
+}
+
+function buildHouses(aoCtx, aoK) {
+  const P = [], N = [], C = []; let ctr = [0, 0, 0];
+  const tri = (a, b, c, col) => { let n = norm(cross(sub(b, a), sub(c, a)));
+    const f = [(a[0] + b[0] + c[0]) / 3 - ctr[0], (a[1] + b[1] + c[1]) / 3 - ctr[1], (a[2] + b[2] + c[2]) / 3 - ctr[2]];
+    if (n[0] * f[0] + n[1] * f[1] + n[2] * f[2] < 0) n = [-n[0], -n[1], -n[2]];                     // always face outwards
+    P.push(...a, ...b, ...c); for (let i = 0; i < 3; i++) { N.push(...n); C.push(...col); } };
+  const quad = (a, b, c, d, col) => { tri(a, b, c, col); tri(a, c, d, col); };
+  const ROOF = REAL ? [[[.50, .51, .53], 40], [[.36, .37, .39], 14], [[.80, .79, .76], 18], [[.34, .48, .68], 10], [[.66, .32, .26], 8], [[.34, .58, .58], 6], [[.70, .62, .50], 4]] : [[[.96, .96, .95], 1]];
+  const pick = u => { let t = u * ROOF.reduce((s, r) => s + r[1], 0); for (const [c, w] of ROOF) { if ((t -= w) < 0) return c; } return ROOF[0][0]; };
+  DATA.houses.forEach(([x, z, w, d, a], k) => {
+    if (sdRR(x, z, 6) > 0) return;
+    if (d > w) { const t = w; w = d; d = t; a += Math.PI / 2; }                       // u = long side, ridge along it
+    const ca = Math.cos(a), sa = Math.sin(a), hw = w / 2, hd = d / 2;
+    const at = (u, v, y) => [x + ca * u - sa * v, y, z + sa * u + ca * v];
+    let g = 1e9; for (const [u, v] of [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]]) { const p = at(u, v, 0); g = Math.min(g, hAt(p[0], p[2])); }
+    const area = w * d, wallH = area > 160 ? 6.4 : area > 90 ? 4.4 : 3.3, top = g + wallH, b0 = g - 2;
+    ctr = [x, g + wallH * .45, z];
+    const u1 = hash1(k * 3 + 1), roof = pick(hash1(k * 3 + 2)), wall = REAL ? [.90, .88, .84] : [.97, .97, .96];
+    const pitched = u1 < .6, ridge = pitched ? Math.min(2.2, d * .32) : 0, ov = pitched ? .35 : 0;
+    const c4 = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+    for (let e = 0; e < 4; e++) { const [p0u, p0v] = c4[e], [p1u, p1v] = c4[(e + 1) % 4];
+      quad(at(p0u, p0v, b0), at(p0u, p0v, top), at(p1u, p1v, top), at(p1u, p1v, b0), wall); }
+    if (!pitched) {
+      const r = roof.map(v => v * .95); quad(at(-hw, -hd, top + .25), at(-hw, hd, top + .25), at(hw, hd, top + .25), at(hw, -hd, top + .25), r);
+      for (let e = 0; e < 4; e++) { const [p0u, p0v] = c4[e], [p1u, p1v] = c4[(e + 1) % 4]; quad(at(p0u, p0v, top), at(p0u, p0v, top + .25), at(p1u, p1v, top + .25), at(p1u, p1v, top), wall); }
+    } else {
+      const W = hw + ov, D = hd + ov, ey = top - ov * ridge / hd;
+      const r0 = at(-W, 0, top + ridge), r1 = at(W, 0, top + ridge);
+      quad(at(-W, -D, ey), r0, r1, at(W, -D, ey), roof);
+      quad(at(W, D, ey), r1, r0, at(-W, D, ey), roof);
+      for (const s of [-1, 1]) tri(at(s * hw, -hd, top), at(s * hw, 0, top + ridge * (1 - ov / W * 0)), at(s * hw, hd, top), wall);
+      // undersides of the eaves so they never show through
+      quad(at(-W, -D, ey), at(W, -D, ey), at(W, -hd, top), at(-W, -hd, top), wall.map(v => v * .8));
+      quad(at(W, D, ey), at(-W, D, ey), at(-W, hd, top), at(W, hd, top), wall.map(v => v * .8));
+    }
+    // contact shadow in the AO map
+    aoCtx.save(); aoCtx.translate((x + HALF) * aoK, (z + HALF) * aoK); aoCtx.rotate(a); aoCtx.fillStyle = 'rgba(0,0,0,.42)';
+    aoCtx.fillRect((-hw - 1.6) * aoK, (-hd - 1.6) * aoK, (w + 3.2) * aoK, (d + 3.2) * aoK); aoCtx.restore();
+  });
+  houV = vao([[0, new Float32Array(P), 3], [1, new Float32Array(N), 3], [2, new Float32Array(C), 3]]); houN = P.length / 3;
+}
+
+function crownGeometry() {
+  // icosphere (1 subdivision), lumpy, smooth normals
+  const t = (1 + Math.sqrt(5)) / 2; let V = [[-1, t, 0], [1, t, 0], [-1, -t, 0], [1, -t, 0], [0, -1, t], [0, 1, t], [0, -1, -t], [0, 1, -t], [t, 0, -1], [t, 0, 1], [-t, 0, -1], [-t, 0, 1]].map(norm);
+  let F = [[0, 11, 5], [0, 5, 1], [0, 1, 7], [0, 7, 10], [0, 10, 11], [1, 5, 9], [5, 11, 4], [11, 10, 2], [10, 7, 6], [7, 1, 8], [3, 9, 4], [3, 4, 2], [3, 2, 6], [3, 6, 8], [3, 8, 9], [4, 9, 5], [2, 4, 11], [6, 2, 10], [8, 6, 7], [9, 8, 1]];
+  for (let s = 0; s < 2; s++) { const cache = {}, mid = (a, b) => { const key = a < b ? a + '_' + b : b + '_' + a; if (cache[key] != null) return cache[key];
+      V.push(norm([(V[a][0] + V[b][0]) / 2, (V[a][1] + V[b][1]) / 2, (V[a][2] + V[b][2]) / 2])); return cache[key] = V.length - 1; };
+    const G = []; for (const [a, b, c] of F) { const ab = mid(a, b), bc = mid(b, c), ca = mid(c, a); G.push([a, ab, ca], [b, bc, ab], [c, ca, bc], [ab, bc, ca]); } F = G;
+    if (s === 0) break; }                                                              // 80 triangles per crown
+  const lump = p => { const n = Math.sin(p[0] * 3.1 + 1.3) * Math.sin(p[1] * 2.7 + .4) * Math.sin(p[2] * 3.3 + 2.1) * .5 + Math.sin(p[0] * 6.3 + p[2] * 5.1) * .25;
+    const f = 1 + .13 * n - (p[1] < -.3 ? (-.3 - p[1]) * .35 : 0); return [p[0] * f, p[1] * f, p[2] * f]; };
+  const P = V.map(lump), N = P.map(() => [0, 0, 0]);
+  for (const [a, b, c] of F) { const n = cross(sub(P[b], P[a]), sub(P[c], P[a])); for (const k of [a, b, c]) for (let i = 0; i < 3; i++) N[k][i] += n[i]; }
+  const pos = new Float32Array(P.flat()), nrm = new Float32Array(N.map((n, k) => { const m = norm(n), s = V[k]; return norm([m[0] * .6 + s[0] * .4, m[1] * .6 + s[1] * .4, m[2] * .6 + s[2] * .4]); }).flat());
+  return [pos, nrm, new Uint32Array(F.flat())];
+}
+
+function buildTrees(aoCtx, aoK) {
+  const [pos, nrm, idx] = crownGeometry();
+  const I = [], Cc = [], Sx = [];
+  const TF = REAL ? [[.13, .27, .09], [.16, .32, .10], [.20, .37, .12], [.24, .41, .13], [.11, .23, .08], [.18, .30, .09]] : [[.80, .84, .76]];
+  const TO = REAL ? [[.22, .40, .12], [.28, .46, .14], [.19, .36, .11], [.32, .49, .15]] : [[.74, .80, .72]];
+  const blob = document.createElement('canvas'); blob.width = blob.height = 64; { const x = blob.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
+    g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(.55, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
+  const add = (x, z, r, c, forest) => {
+    const g = hAt(x, z), sq = .78 + rnd() * .2, y = g + r * sq * (forest ? .55 : .95);
+    I.push(x, y, z, r); Cc.push(c[0], c[1], c[2]); Sx.push(sq, rnd() * 6.283);
+    const R = r * (forest ? 1.25 : 1.6) * aoK; aoCtx.drawImage(blob, (x + HALF) * aoK - R, (z + HALF) * aoK - R, 2 * R, 2 * R);
+  };
+  const sp = PHONE ? 9.5 : 7;
+  for (let z = -HALF + 4; z < HALF - 4; z += sp) for (let x = -HALF + 4; x < HALF - 4; x += sp) {
+    const px = x + (rnd() - .5) * sp * .9, pz = z + (rnd() - .5) * sp * .9;
+    if (sdRR(px, pz, 6) > 0) continue;
+    if (mAt(px, pz, 0) > .15 || mAt(px, pz, 1) > .12) continue;
+    const fw = mAt(px, pz, 2);
+    const pr = fw > .55 ? .93 : fw * 1.1 + .012;
+    if (rnd() > pr) continue;
+    const j = .88 + rnd() * .24, forest = fw > .45;
+    const t = forest ? TF[(rnd() * TF.length) | 0] : TO[(rnd() * TO.length) | 0];
+    const r = forest ? (PHONE ? 4.6 : 3.6) + rnd() * 2.2 : 2.2 + rnd() * 2.0;
+    add(px, pz, r, t.map(v => Math.min(1, v * j)), forest);
+  }
+  treV = vao([[0, pos, 3], [1, nrm, 3], [2, new Float32Array(I), 4, 1], [3, new Float32Array(Cc), 3, 1], [4, new Float32Array(Sx), 2, 1]], idx);
+  treN = idx.length; treI = I.length / 4;
+}
+
+// ------------------------------------------------------------------ shadow map (the sun never moves: rendered once)
+let SM = null, SMS = 4096, LVP = null;
+function shadowPass() {
+  SMS = Math.min(4096, gl.getParameter(gl.MAX_TEXTURE_SIZE));
+  SM = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, SM);
+  gl.texStorage2D(gl.TEXTURE_2D, 1, gl.DEPTH_COMPONENT24, SMS, SMS);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MAG_FILTER, gl.LINEAR);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_MODE, gl.COMPARE_REF_TO_TEXTURE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_COMPARE_FUNC, gl.LEQUAL);
+  const fb = gl.createFramebuffer(); gl.bindFramebuffer(gl.FRAMEBUFFER, fb); gl.framebufferTexture2D(gl.FRAMEBUFFER, gl.DEPTH_ATTACHMENT, gl.TEXTURE_2D, SM, 0);
+  const cy = (DATA.hmin + DATA.hmax) / 2, c = [0, cy, 0], e = [SUN[0] * 4000, cy + SUN[1] * 4000, SUN[2] * 4000];
+  LVP = mul(ortho(-1720, 1720, -1720, 1720, 1500, 6500), look(e, c, [0, 1, 0]));
+  gl.viewport(0, 0, SMS, SMS); gl.clear(gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST); gl.enable(gl.POLYGON_OFFSET_FILL); gl.polygonOffset(1.5, 3);
+  gl.useProgram(DEP.p); gl.uniformMatrix4fv(DEP.u.uVP, false, LVP);
+  gl.bindVertexArray(terV); gl.drawElements(gl.TRIANGLES, terN, gl.UNSIGNED_INT, 0);
+  gl.bindVertexArray(houV); gl.drawArrays(gl.TRIANGLES, 0, houN);
+  gl.useProgram(DEPI.p); gl.uniformMatrix4fv(DEPI.u.uVP, false, LVP);
+  gl.bindVertexArray(treV); gl.drawElementsInstanced(gl.TRIANGLES, treN, gl.UNSIGNED_INT, 0, treI);
+  gl.disable(gl.POLYGON_OFFSET_FILL); gl.bindFramebuffer(gl.FRAMEBUFFER, null);
+}
+
+// ------------------------------------------------------------------ camera + input
+// the whole tile fits in any frame: wide frames use 3600 m, tall ones step back (Figma frames can be any shape)
+const homeDist = () => 3600 * clamp(1.65 / (innerWidth / Math.max(1, innerHeight)), 1, 3.6);
+const HOME = { tx: 60, tz: 40, yaw: .72, pitch: .64, dist: homeDist() };
+const CAM = Object.assign({}, HOME, { ty: 0, dist: HOME.dist * 1.35, yaw: HOME.yaw - .5 });
+const VEL = { yaw: 0, pitch: 0 }; let lastInput = -1e9, introT = 0;
+const LIM = { d0: 160, d1: 16000, p0: .14, p1: 1.42, r: 1050 };
+addEventListener('resize', () => { const d = homeDist(); if (introT >= 1 && !goal && Math.abs(CAM.dist - HOME.dist) < 40) CAM.dist = d; HOME.dist = d; });
+function clampCam() { CAM.dist = clamp(CAM.dist, LIM.d0, LIM.d1); CAM.pitch = clamp(CAM.pitch, LIM.p0, LIM.p1);
+  const r = Math.hypot(CAM.tx, CAM.tz); if (r > LIM.r) { CAM.tx *= LIM.r / r; CAM.tz *= LIM.r / r; } }
+const ptr = new Map(); let mode = null, prev = null;
+const now = () => performance.now();
+function gesture() { const p = [...ptr.values()];
+  if (p.length === 1) return { x: p[0].x, y: p[0].y };
+  const [a, b] = p; return { x: (a.x + b.x) / 2, y: (a.y + b.y) / 2, d: Math.hypot(a.x - b.x, a.y - b.y), a: Math.atan2(b.y - a.y, b.x - a.x) }; }
+function pan(dx, dy) {   // the ground under the finger follows the finger
+  const s = CAM.dist * 1.0 / innerHeight, s2 = s / Math.max(.4, Math.sin(CAM.pitch)), c = Math.cos(CAM.yaw), sn = Math.sin(CAM.yaw);
+  CAM.tx += -c * dx * s - sn * dy * s2; CAM.tz += sn * dx * s - c * dy * s2; }
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); ptr.set(e.pointerId, { x: e.clientX, y: e.clientY });
+  mode = ptr.size >= 2 ? 'two' : (e.button === 2 || e.button === 1 || e.shiftKey) ? 'pan' : 'rot'; prev = gesture(); VEL.yaw = VEL.pitch = 0; lastInput = now(); cv.classList.add('drag'); });
+cv.addEventListener('pointermove', e => { if (!ptr.has(e.pointerId)) return; ptr.set(e.pointerId, { x: e.clientX, y: e.clientY }); const g = gesture(); if (!prev) { prev = g; return; }
+  const dx = g.x - prev.x, dy = g.y - prev.y;
+  if (mode === 'rot' && ptr.size === 1) { const k = 4.2 / Math.max(innerWidth, 600); VEL.yaw = -dx * k; VEL.pitch = dy * k * .8; CAM.yaw += VEL.yaw; CAM.pitch += VEL.pitch; }
+  else if (mode === 'pan' && ptr.size === 1) pan(dx, dy);
+  else if (ptr.size >= 2 && prev.d) { CAM.dist *= prev.d / g.d; let da = g.a - prev.a; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI; CAM.yaw -= da; pan(dx, dy); }
+  prev = g; lastInput = now(); clampCam(); });
+const up = e => { ptr.delete(e.pointerId); prev = ptr.size ? gesture() : null; if (!ptr.size) { mode = null; cv.classList.remove('drag'); } else mode = 'two'; lastInput = now(); };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('wheel', e => { e.preventDefault(); CAM.dist *= Math.exp(clamp(e.deltaY, -120, 120) * (e.ctrlKey ? .01 : .0016)); clampCam(); lastInput = now(); }, { passive: false });
+cv.addEventListener('dblclick', () => { goal = Object.assign({}, HOME); lastInput = now(); });
+let goal = null;
+
+// ------------------------------------------------------------------ frame
+let W = 0, Hh = 0;
+function resize() { const d = Math.min(devicePixelRatio || 1, PHONE ? 2 : 2); W = Math.round(innerWidth * d); Hh = Math.round(innerHeight * d); cv.width = W; cv.height = Hh; }
+addEventListener('resize', resize);
+let t0 = now(), tl = t0;
+function common(P) {
+  gl.uniformMatrix4fv(P.u.uLVP, false, LVP); gl.uniform3fv(P.u.uL, SUN); gl.uniform3fv(P.u.uSunC, LOOKS.sun); gl.uniform3fv(P.u.uSky, LOOKS.sky); gl.uniform3fv(P.u.uGnd, LOOKS.gnd);
+  gl.uniform1f(P.u.uSMs, 1 / SMS); gl.uniform1f(P.u.uExp, LOOKS.exp); gl.uniform1i(P.u.uSM, 3);
+  if (P.u.uHalf) { gl.uniform1f(P.u.uHalf, HALF); gl.uniform1f(P.u.uRad, RAD); }
+  if (P.u.uReal) gl.uniform1i(P.u.uReal, REAL ? 1 : 0);
+  if (P.u.uBase) gl.uniform1f(P.u.uBase, BASE);
+}
+function frame() {
+  const tn = now(), dt = Math.min(.05, (tn - tl) / 1000); tl = tn; const t = (tn - t0) / 1000;
+  // easing: intro glide, home, inertia, idle spin
+  if (goal) { for (const k of ['tx', 'tz', 'pitch', 'dist']) CAM[k] = lerp(CAM[k], goal[k], .08); let dy = goal.yaw - CAM.yaw; dy = Math.atan2(Math.sin(dy), Math.cos(dy)); CAM.yaw += dy * .08;
+    if (Math.abs(CAM.dist - goal.dist) < 2 && Math.abs(dy) < .002) goal = null; }
+  else if (introT < 1 && lastInput > t0) introT = 1;
+  else if (introT < 1) { introT = Math.min(1, t / 2.4); const e = 1 - Math.pow(1 - introT, 3); CAM.dist = lerp(HOME.dist * 1.35, HOME.dist, e); CAM.yaw = lerp(HOME.yaw - .5, HOME.yaw, e); }
+  if (!ptr.size) { CAM.yaw += VEL.yaw; CAM.pitch += VEL.pitch; VEL.yaw *= .92; VEL.pitch *= .9;
+    const idle = (tn - lastInput) / 1000; if (SPIN && introT >= 1 && !goal && idle > 4) CAM.yaw += dt * .045 * Math.min(1, (idle - 4) / 2); }
+  clampCam();
+  CAM.ty = lerp(CAM.ty || hAt(CAM.tx, CAM.tz), hAt(CAM.tx, CAM.tz), .1);
+  const cp = Math.cos(CAM.pitch), eye = [CAM.tx + CAM.dist * cp * Math.sin(CAM.yaw), CAM.ty + CAM.dist * Math.sin(CAM.pitch), CAM.tz + CAM.dist * cp * Math.cos(CAM.yaw)];
+  const VP = mul(persp(.56, W / Hh, Math.max(4, CAM.dist * .03), CAM.dist * 3 + 4000), look(eye, [CAM.tx, CAM.ty, CAM.tz], [0, 1, 0]));
+  gl.viewport(0, 0, W, Hh); gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.activeTexture(gl.TEXTURE3); gl.bindTexture(gl.TEXTURE_2D, SM);
+  // page shadow (premultiplied), then the opaque model
+  gl.disable(gl.DEPTH_TEST); gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA);
+  gl.useProgram(FLO.p); gl.uniformMatrix4fv(FLO.u.uVP, false, VP); gl.uniform1f(FLO.u.uHalf, HALF); gl.uniform1f(FLO.u.uRad, RAD); gl.uniform2f(FLO.u.uOff, -SUN[0] * 140, -SUN[2] * 140);
+  gl.bindVertexArray(floV); gl.drawArrays(gl.TRIANGLES, 0, 6);
+  gl.disable(gl.BLEND); gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(TER.p); common(TER); gl.uniformMatrix4fv(TER.u.uVP, false, VP); gl.uniform3fv(TER.u.uEye, eye);
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, gTex || mTex); gl.uniform1i(TER.u.uG, 0);
+  gl.activeTexture(gl.TEXTURE1); gl.bindTexture(gl.TEXTURE_2D, aoTex); gl.uniform1i(TER.u.uAO, 1);
+  gl.activeTexture(gl.TEXTURE2); gl.bindTexture(gl.TEXTURE_2D, mTex); gl.uniform1i(TER.u.uMK, 2);
+  gl.bindVertexArray(terV); gl.drawElements(gl.TRIANGLES, terN, gl.UNSIGNED_INT, 0);
+  gl.useProgram(SIDE.p); common(SIDE); gl.uniformMatrix4fv(SIDE.u.uVP, false, VP); gl.uniform3fv(SIDE.u.uEye, eye); gl.bindVertexArray(sideV); gl.drawArrays(gl.TRIANGLES, 0, sideN);
+  gl.useProgram(LIT.p); common(LIT); gl.uniformMatrix4fv(LIT.u.uVP, false, VP); gl.uniform3fv(LIT.u.uEye, eye); gl.bindVertexArray(houV); gl.drawArrays(gl.TRIANGLES, 0, houN);
+  gl.useProgram(TRE.p); common(TRE); gl.uniformMatrix4fv(TRE.u.uVP, false, VP); gl.uniform3fv(TRE.u.uEye, eye); gl.bindVertexArray(treV); gl.drawElementsInstanced(gl.TRIANGLES, treN, gl.UNSIGNED_INT, 0, treI);
+  gl.enable(gl.BLEND); gl.blendFuncSeparate(gl.ONE, gl.ONE_MINUS_SRC_ALPHA, gl.ONE, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+  gl.useProgram(WAT.p); common(WAT); gl.uniformMatrix4fv(WAT.u.uVP, false, VP); gl.uniform3fv(WAT.u.uEye, eye); gl.uniform1f(WAT.u.uT, t);
+  gl.bindVertexArray(watV); gl.drawElements(gl.TRIANGLES, watN, gl.UNSIGNED_INT, 0);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+  requestAnimationFrame(frame);
+}
+
+// ------------------------------------------------------------------ boot
+const load = src => new Promise((res, rej) => { if (!src) return res(null); const i = new Image(); i.onload = () => res(i); i.onerror = rej; i.src = src; });
+function texFrom(img, mip) { const t = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, t); gl.pixelStorei(gl.UNPACK_FLIP_Y_WEBGL, false);
+  gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGBA, gl.RGBA, gl.UNSIGNED_BYTE, img);
+  gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+  if (mip) { gl.generateMipmap(gl.TEXTURE_2D); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR);
+    const an = gl.getExtension('EXT_texture_filter_anisotropic'); if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT))); }
+  else gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR);
+  return t; }
+(async () => {
+  try {
+    if (!gl) throw new Error('这个浏览器不支持 WebGL2');
+    const [mi, gi] = await Promise.all([load(MASK), load(GROUND)]);
+    const c = document.createElement('canvas'); MW = c.width = c.height = 1200; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(mi, 0, 0, MW, MW); MK = x.getImageData(0, 0, MW, MW).data;
+    mTex = texFrom(c, true); if (gi) gTex = texFrom(gi, true);
+    const WM = carve();
+    const ac = document.createElement('canvas'); ac.width = ac.height = 1600; const ax = ac.getContext('2d'), aoK = 1600 / (2 * HALF);
+    ax.fillStyle = '#fff'; ax.fillRect(0, 0, 1600, 1600);
+    buildTerrain(WM); buildTrees(ax, aoK); ax.filter = 'blur(1.2px)'; buildHouses(ax, aoK);
+    aoTex = texFrom(ac, true);
+    shadowPass(); resize(); frame();
+    const L = document.getElementById('load'); L.style.opacity = 0; setTimeout(() => L.remove(), 600);
+    window.READY = { style: STYLE, trees: treI, houses: houN / 3 | 0, water: watN / 3, sm: SMS };
+  } catch (e) { window.FAIL = String(e && e.stack || e); console.error(e); }
+})();
+// test hook
+window.view = o => { Object.assign(CAM, o); introT = 1; goal = null; lastInput = now() + 1e9; clampCam(); };
+</script>
+</body>
+</html>

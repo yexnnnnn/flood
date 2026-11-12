@@ -13,12 +13,16 @@ import map_only as MO
 D, BW, G = S.D, S.BW, S.G
 pts_d, chaikin, X, Y = S.pts_d, S.chaikin, S.X, S.Y
 JPG = os.path.join(D.HERE, '_real.jpg')
+FIG_JPG = os.path.join(MO.OUT, 'M7 写实底图.jpg')       # committed copy, used when _real.jpg (local render) is absent
+BLUR_JPG = os.path.join(MO.OUT, 'M7 背景模糊.jpg')      # blurred, darkened copy for glass backdrops
 SZ = 1000
 INKG = '#1c261e'          # label text on white pills
 FONT = D.SANS
 
+def jpg_uri(p): return 'data:image/jpeg;base64,' + base64.b64encode(open(p, 'rb').read()).decode()
+
 def base():
-    uri = 'data:image/jpeg;base64,' + base64.b64encode(open(JPG, 'rb').read()).decode()
+    uri = jpg_uri(JPG if os.path.exists(JPG) else FIG_JPG)
     return f'<image id="写实底图" x="0" y="0" width="{SZ}" height="{SZ}" preserveAspectRatio="none" href="{uri}"/>'
 
 def vignette():
@@ -105,5 +109,5 @@ def build():
 if __name__ == '__main__':
     s = build(); p = os.path.join(MO.OUT, 'M7 写实.svg')
     open(p, 'w', encoding='utf-8').write(s)
-    shutil.copy(JPG, os.path.join(MO.OUT, 'M7 写实底图.jpg'))
+    if os.path.exists(JPG): shutil.copy(JPG, FIG_JPG)
     print(os.path.basename(p), f'{len(s) // 1024} KB', 'layers≈', s.count('<path') + s.count('<rect') + s.count('<text') + s.count('<circle'))

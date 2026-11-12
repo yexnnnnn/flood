@@ -1,0 +1,18 @@
+<!doctype html><html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
+<title>地图组件 · 样式</title><style>
+html,body{margin:0;height:100%;background:#f5f3ef;font-family:"Noto Sans SC","PingFang SC",sans-serif;color:#161514;overflow:hidden}
+#v{position:absolute;inset:0 0 64px 0;display:grid;place-items:center}
+#v img{max-width:100%;max-height:100%;box-shadow:0 10px 50px rgba(22,21,20,.08);background:#f5f3ef}
+nav{position:absolute;left:0;right:0;bottom:0;height:64px;display:flex;gap:6px;align-items:center;justify-content:center}
+nav button{border:0;background:transparent;font:500 15px "Noto Sans SC",sans-serif;padding:8px 16px;border-radius:999px;cursor:pointer;color:rgba(22,21,20,.55)}
+nav button.on{background:#fff;color:#161514;box-shadow:0 1px 8px rgba(22,21,20,.08)}
+nav span{font:400 13px "JetBrains Mono",monospace;opacity:.45;margin-left:18px}
+</style></head><body><div id="v"><img id="im" alt=""></div><nav id="n"></nav><script>
+const S = [["M0", "现状", "M0 现状.svg"], ["M1", "白模", "M1 白模.svg"], ["M2", "体块", "M2 体块.svg"], ["M3", "线稿", "M3 线稿.svg"], ["M4", "点阵", "M4 点阵.svg"], ["M5", "色带", "M5 色带.svg"]]; const n = document.getElementById('n'), im = document.getElementById('im'); let k = 1;
+n.innerHTML = S.map((s, i) => `<button data-i="${i}">${s[0]} ${s[1]}</button>`).join('') + '<span>← → 或 0–5 切换</span>';
+S.forEach(s => { const p = new Image(); p.src = 'figma/地图样式/' + encodeURIComponent(s[2]); });
+function go(i) { k = (i + S.length) % S.length; im.src = 'figma/地图样式/' + encodeURIComponent(S[k][2]); n.querySelectorAll('button').forEach((b, j) => b.classList.toggle('on', j === k)); history.replaceState(null, '', '#' + S[k][0]); }
+n.onclick = e => { if (e.target.dataset.i) go(+e.target.dataset.i); };
+addEventListener('keydown', e => { if (e.key === 'ArrowRight') go(k + 1); if (e.key === 'ArrowLeft') go(k - 1); if (/^[0-9]$/.test(e.key) && +e.key < S.length) go(+e.key); });
+const h = S.findIndex(s => '#' + s[0] === location.hash); go(h < 0 ? 1 : h);
+</script></body></html>

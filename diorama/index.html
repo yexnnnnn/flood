@@ -5,86 +5,91 @@
 <meta name="viewport" content="width=device-width,initial-scale=1">
 <title>泥石流 · Debris Flow — 材料研究</title>
 <style>
-:root{--ink:#1f2a24;--ink2:rgba(31,42,36,.58);--ink3:rgba(31,42,36,.38);--acc:#4f6f5c}
+/* Neon white-model theme: graphite ground, white massing, neon line work (GSD axon / Porto Rocha / Work by Works) */
+:root{--ink:#f2f3ef;--ink2:rgba(242,243,239,.62);--ink3:rgba(242,243,239,.38);--acc:#c8ff2e;--lime:#c8ff2e;--cyan:#00e1ff;--orange:#ff8a2a;--mag:#ff3dda;--violet:#7a6bff;
+  --sans:"Helvetica Neue","Neue Haas Grotesk Text",Inter,Arial,"PingFang SC","Microsoft YaHei",sans-serif;--mono:"SF Mono","JetBrains Mono",ui-monospace,Menlo,Consolas,"PingFang SC",monospace}
 *{box-sizing:border-box}
-html,body{margin:0;height:100%;background:#aab6a9;overflow:hidden;font-family:-apple-system,"PingFang SC","Microsoft YaHei",system-ui,sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased;user-select:none}
+html,body{margin:0;height:100%;background:#0b0c0e;overflow:hidden;font-family:var(--sans);color:var(--ink);-webkit-font-smoothing:antialiased;user-select:none}
 canvas#c{width:100%;height:100%;display:block;touch-action:none;cursor:grab}
 body.dragging,body.dragging *{cursor:grabbing!important}
-.glass{background:linear-gradient(155deg,rgba(250,253,250,.36),rgba(236,243,237,.16));backdrop-filter:blur(28px) saturate(1.7);-webkit-backdrop-filter:blur(28px) saturate(1.7);
-  border-radius:18px;box-shadow:0 22px 50px -26px rgba(22,34,27,.38),0 2px 8px rgba(22,34,27,.04)}
+.glass{background:rgba(15,16,18,.64);backdrop-filter:blur(22px) saturate(1.25);-webkit-backdrop-filter:blur(22px) saturate(1.25);border-radius:6px;box-shadow:0 24px 48px -24px rgba(0,0,0,.7)}
 /* top-left: title + rain */
-#title{position:absolute;top:18px;left:20px;font-size:19px;font-weight:600;letter-spacing:.08em;pointer-events:none}
-#title span{display:block;font-size:10px;font-weight:400;letter-spacing:.22em;color:var(--ink3);margin-top:3px}
-#rainbox{position:absolute;top:70px;left:16px;width:252px;padding:14px 15px 12px;font-size:11.5px}
-label{display:block;margin:6px 0 0;color:var(--ink2)}label b{float:right;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}
+#title{position:absolute;top:16px;left:20px;font-size:46px;font-weight:700;letter-spacing:-.035em;line-height:.92;pointer-events:none}
+#title span{display:block;font-family:var(--mono);font-size:9.5px;font-weight:400;letter-spacing:.16em;color:var(--ink3);margin-top:9px;text-transform:uppercase}
+#title span b{color:var(--lime);font-weight:400}
+#rainbox{position:absolute;top:104px;left:16px;width:256px;padding:14px 15px 12px;font-size:11.5px}
+label{display:block;margin:6px 0 0;color:var(--ink2)}label b{float:right;font-weight:700;color:var(--ink);font-variant-numeric:tabular-nums}
 input[type=range]{-webkit-appearance:none;appearance:none;width:100%;height:18px;background:transparent;margin:2px 0 0}
-input[type=range]::-webkit-slider-runnable-track{height:3px;border-radius:2px;background:rgba(31,42,36,.16)}
-input[type=range]::-moz-range-track{height:3px;border-radius:2px;background:rgba(31,42,36,.16)}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:15px;height:15px;border-radius:50%;background:#fbfdfb;margin-top:-6px;box-shadow:0 1px 5px rgba(22,34,27,.3)}
-input[type=range]::-moz-range-thumb{width:15px;height:15px;border:none;border-radius:50%;background:#fbfdfb;box-shadow:0 1px 5px rgba(22,34,27,.3)}
-#presets{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin:9px 0 2px}
-#presets button{padding:5px 8px;border-radius:10px;text-align:left;font-size:11px;line-height:1.25}#presets button i{display:block;font-style:normal;font-size:9.5px;color:var(--ink3)}
-#presets button.on{background:rgba(31,42,36,.82);color:#f2f5f1}#presets button.on i{color:rgba(242,245,241,.6)}
+input[type=range]::-webkit-slider-runnable-track{height:2px;background:rgba(242,243,239,.16)}
+input[type=range]::-moz-range-track{height:2px;background:rgba(242,243,239,.16)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:12px;height:12px;border-radius:50%;background:var(--lime);margin-top:-5px}
+input[type=range]::-moz-range-thumb{width:12px;height:12px;border:none;border-radius:50%;background:var(--lime)}
+#presets{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin:9px 0 2px}
+#presets button{padding:6px 8px;border-radius:3px;text-align:left;font-size:11px;line-height:1.25}#presets button i{display:block;font-style:normal;font-family:var(--mono);font-size:9px;color:var(--ink3)}
+#presets button.on{background:var(--lime);color:#0b0c0e}#presets button.on i{color:rgba(11,12,14,.6)}
 #derived{margin-top:8px;color:var(--ink2);font-size:11px}#derived b{color:var(--ink)}
-.verdict{margin-top:8px;padding:7px 10px;border-radius:11px;font-size:11.5px;line-height:1.4}.verdict.ok{background:rgba(90,150,110,.16);color:#2f6545}.verdict.bad{background:rgba(180,80,60,.15);color:#97392a}
-#gauge{position:relative;height:5px;border-radius:3px;background:rgba(31,42,36,.1);margin-top:10px}#gauge .fill{position:absolute;left:0;top:0;bottom:0;border-radius:3px;background:linear-gradient(90deg,#86a9b8,#5d7f93)}
-#gauge .mk{position:absolute;top:-3px;width:2px;height:11px;margin-left:-1px;background:rgba(170,70,50,.6);border-radius:1px}#gauge .mk.hi{background:rgba(170,70,50,.95)}
-#gaugeL{display:flex;justify-content:space-between;gap:6px;font-size:9.5px;color:var(--ink3);margin-top:4px}
-#more{margin-top:9px;padding:0;background:none;box-shadow:none;color:var(--ink3);font-size:10.5px}#more:hover{background:none;color:var(--ink)}
+.verdict{margin-top:8px;padding:7px 10px;border-radius:3px;font-size:11.5px;line-height:1.4}.verdict.ok{background:rgba(200,255,46,.1);color:var(--lime)}.verdict.bad{background:rgba(255,61,218,.13);color:#ff7be6}
+#gauge{position:relative;height:4px;background:rgba(242,243,239,.1);margin-top:10px}#gauge .fill{position:absolute;left:0;top:0;bottom:0;background:linear-gradient(90deg,var(--cyan),#3d5afe)}
+#gauge .mk{position:absolute;top:-3px;width:2px;height:10px;margin-left:-1px;background:rgba(255,61,218,.55)}#gauge .mk.hi{background:var(--mag)}
+#gaugeL{display:flex;justify-content:space-between;gap:6px;font-family:var(--mono);font-size:9px;color:var(--ink3);margin-top:5px}
+#more{margin-top:9px;padding:0;background:none;box-shadow:none;color:var(--ink3);font-size:10.5px}#more:hover{background:none;color:var(--lime)}
 #rainbox .adv{display:none}#rainbox.open .adv{display:block}
-select{-webkit-appearance:none;appearance:none;width:100%;margin-top:4px;padding:6px 26px 6px 10px;font:inherit;color:var(--ink);border:none;border-radius:10px;outline:none;cursor:pointer;
-  background:rgba(255,255,255,.32) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%231f2a24' stroke-opacity='.5' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 10px center}
+select{-webkit-appearance:none;appearance:none;width:100%;margin-top:4px;padding:6px 26px 6px 10px;font:inherit;color:var(--ink);border:none;border-radius:3px;outline:none;cursor:pointer;
+  background:rgba(242,243,239,.07) url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='6'%3E%3Cpath d='M1 1l4 4 4-4' fill='none' stroke='%23f2f3ef' stroke-opacity='.6' stroke-width='1.4'/%3E%3C/svg%3E") no-repeat right 10px center}
+option{background:#16171a;color:#f2f3ef}
 .note{font-size:10px;color:var(--ink3);margin-top:4px;line-height:1.5}
 .src{font-size:9.5px;color:var(--ink3);margin-top:8px;line-height:1.5}
-button{color:var(--ink);font:inherit;padding:7px 10px;cursor:pointer;border:none;border-radius:999px;background:rgba(255,255,255,.34);box-shadow:0 1px 2px rgba(22,34,27,.05);transition:background .2s,transform .1s,opacity .2s;white-space:nowrap}
-button:hover:not(:disabled){background:rgba(255,255,255,.56)}button:active:not(:disabled){transform:scale(.97)}button:disabled{opacity:.38;cursor:default}
-button.ink{background:rgba(31,42,36,.84);color:#f2f5f1}button.ink:hover:not(:disabled){background:rgba(31,42,36,.95)}button.on{background:rgba(79,111,92,.85);color:#f2f5f1}
+button{color:var(--ink);font:inherit;padding:7px 10px;cursor:pointer;border:none;border-radius:3px;background:rgba(242,243,239,.08);transition:background .2s,color .2s,transform .1s,opacity .2s;white-space:nowrap}
+button:hover:not(:disabled){background:rgba(242,243,239,.15)}button:active:not(:disabled){transform:scale(.97)}button:disabled{opacity:.32;cursor:default}
+button.ink{background:var(--lime);color:#0b0c0e}button.ink:hover:not(:disabled){background:#d9ff6a}button.on{background:var(--lime);color:#0b0c0e}
 button.wide{display:block;width:100%;margin-top:7px}
-/* top-right: small frosted dashboards */
-#dash{position:absolute;top:16px;right:16px;width:252px;display:grid;grid-template-columns:1fr 1fr;gap:8px}
+/* top-right: dashboards */
+#dash{position:absolute;top:16px;right:16px;width:256px;display:grid;grid-template-columns:1fr 1fr;gap:6px}
 .tile{padding:10px 12px 10px;font-size:10.5px;color:var(--ink2);line-height:1.4;min-height:74px}
-.tile em{display:block;font-style:normal;font-size:10px;letter-spacing:.12em;color:var(--ink3);margin-bottom:3px}
-.tile>b{display:block;font-size:21px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.2}.tile>b small{font-size:11px;font-weight:400;color:var(--ink3)}
+.tile em{display:block;font-style:normal;font-family:var(--mono);font-size:9px;letter-spacing:.14em;text-transform:uppercase;color:var(--ink3);margin-bottom:4px}
+.tile>b{display:block;font-size:24px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums;line-height:1.15}.tile>b small{font-size:11px;font-weight:400;color:var(--ink3)}
 .tile.w2{grid-column:1/3}
-.tri{display:flex;justify-content:space-between;margin-top:2px}.tri div{text-align:center;flex:1}.tri b{display:block;font-size:19px;font-weight:600;color:var(--ink);font-variant-numeric:tabular-nums}.tri span{font-size:9.5px;color:var(--ink3)}
+.tri{display:flex;justify-content:space-between;margin-top:2px}.tri div{text-align:center;flex:1}.tri b{display:block;font-size:20px;font-weight:700;letter-spacing:-.02em;color:var(--ink);font-variant-numeric:tabular-nums}.tri span{font-size:9.5px;color:var(--ink3)}
 .tri.q4 b{font-size:16px}
-.mini{position:relative;height:3px;border-radius:2px;background:rgba(31,42,36,.1);margin-top:6px}.mini i{position:absolute;left:0;top:0;bottom:0;border-radius:2px;background:#5d7f93}.mini u{position:absolute;top:-2px;width:1.5px;height:7px;background:rgba(170,70,50,.8)}
-.ok{color:#3f7a56!important}.warn{color:#a7752a!important}.bad{color:#b14a3a!important}
+.mini{position:relative;height:2px;background:rgba(242,243,239,.12);margin-top:7px}.mini i{position:absolute;left:0;top:0;bottom:0;background:var(--cyan)}.mini u{position:absolute;top:-3px;width:1.5px;height:8px;background:var(--mag)}
+.ok{color:var(--lime)!important}.warn{color:var(--orange)!important}.bad{color:var(--mag)!important}
 .cr{display:grid;grid-template-columns:34px 26px 14px 1fr 16px;align-items:baseline;margin:2px 0;font-variant-numeric:tabular-nums}.cr s{text-decoration:none;color:var(--ink3);text-align:right}.cr i{font-style:normal;color:var(--ink3);text-align:center}.cr b{font-size:15px;color:var(--ink)}.cr small{color:var(--ink3)}
-.btn2{display:grid;grid-template-columns:1fr 1fr;gap:5px;margin-top:7px}.btn2 button{padding:5px 6px;font-size:11px}
-#card{position:absolute;top:262px;right:16px;width:252px;padding:13px 14px 11px;font-size:11px;display:none;line-height:1.55}
+.btn2{display:grid;grid-template-columns:1fr 1fr;gap:4px;margin-top:7px}.btn2 button{padding:5px 6px;font-size:11px}
+#card{position:absolute;top:262px;right:16px;width:256px;padding:13px 14px 11px;font-size:11px;display:none;line-height:1.55}
 #cardX{position:absolute;top:8px;right:8px;width:24px;height:24px;padding:0;font-size:13px;line-height:24px}
-.ct{font-size:14px;font-weight:600;margin-bottom:5px}.ct span{display:block;font-size:10.5px;font-weight:400;color:var(--ink2)}
+.ct{font-size:15px;font-weight:700;letter-spacing:-.01em;margin-bottom:5px}.ct span{display:block;font-size:10.5px;font-weight:400;color:var(--ink2)}
 .kv{margin:2px 0;color:var(--ink)}.kv b{font-weight:400;color:var(--ink3);margin-right:6px}.kv b:not(:first-child){margin-left:10px}
-#card table{width:100%;border-collapse:collapse;margin:6px 0 4px;font-variant-numeric:tabular-nums}#card td{padding:2px 4px 2px 0;border-top:1px solid rgba(31,42,36,.07);white-space:nowrap;color:var(--ink2)}
-.cmpline{display:flex;align-items:center;gap:5px;margin:2px 0 6px;padding:5px 8px;border-radius:9px;background:rgba(255,255,255,.28)}.cmpline span{color:var(--ink3)}
-.mok{color:#3f7a56}.mwarn{color:#a7752a}.mbad{color:#b14a3a}
+#card table{width:100%;border-collapse:collapse;margin:6px 0 4px;font-variant-numeric:tabular-nums}#card td{padding:3px 4px 2px 0;background:rgba(242,243,239,.03);white-space:nowrap;color:var(--ink2)}
+.cmpline{display:flex;align-items:center;gap:5px;margin:2px 0 6px;padding:5px 8px;border-radius:3px;background:rgba(242,243,239,.06)}.cmpline span{color:var(--ink3)}
+.mok{color:var(--lime)}.mwarn{color:var(--orange)}.mbad{color:var(--mag)}
 /* bottom: parts tray + timeline */
 #tray{position:absolute;left:50%;transform:translateX(-50%);bottom:112px;padding:7px 9px 6px;display:flex;flex-direction:column;align-items:center;gap:3px;transition:background .2s}
-#tray.drop{background:linear-gradient(155deg,rgba(255,228,220,.5),rgba(240,200,190,.25))}
+#tray.drop{background:rgba(255,61,218,.2)}
 #parts{display:flex;gap:4px}
-.part{width:66px;padding:5px 0 4px;border-radius:13px;text-align:center;cursor:grab;transition:background .15s,transform .15s}.part:hover{background:rgba(255,255,255,.42);transform:translateY(-2px)}
-.part svg{width:40px;height:36px;fill:none;stroke:var(--ink);stroke-width:1.6;stroke-linecap:round;stroke-linejoin:round}
-.part b{display:block;font-size:11px;font-weight:500}.part i{display:block;font-style:normal;font-size:9px;color:var(--ink3)}
+.part{width:66px;padding:5px 0 4px;border-radius:4px;text-align:center;cursor:grab;transition:background .15s,transform .15s}.part:hover{background:rgba(242,243,239,.07);transform:translateY(-2px)}
+.part svg{width:40px;height:36px;fill:none;stroke:var(--ink);stroke-width:1.5;stroke-linecap:round;stroke-linejoin:round;transition:stroke .15s}.part:hover svg{stroke:var(--lime)}
+.part b{display:block;font-size:11px;font-weight:500}.part i{display:block;font-style:normal;font-family:var(--mono);font-size:8.5px;color:var(--ink3)}
 #hintline{font-size:10px;color:var(--ink3);max-width:520px;text-align:center;line-height:1.4;min-height:14px}
 #timebar{position:absolute;left:16px;right:16px;bottom:16px;height:84px;padding:8px 12px 6px 12px;display:flex;gap:10px;align-items:stretch}
 #timebar .ctl{display:flex;flex-direction:column;justify-content:center;gap:6px;width:150px;flex:none}
-#timebar .ctl div{display:flex;gap:5px}#bPlay{width:40px;padding:6px 0}#bSpeed{width:38px;padding:6px 0}#bKnock{flex:1;padding:6px 6px;font-size:11px;background:rgba(211,138,58,.22)}
-#clock{display:block!important;font-size:10.5px;color:var(--ink2);font-variant-numeric:tabular-nums;line-height:1.25}#clock b{display:block;font-size:17px;color:var(--ink);font-weight:600}
-.vb{font-style:normal;margin-left:6px;padding:1px 6px;border-radius:7px;background:rgba(31,42,36,.8);color:#f2f5f1}
+#timebar .ctl div{display:flex;gap:4px}#bPlay{width:40px;padding:6px 0}#bSpeed{width:38px;padding:6px 0;font-family:var(--mono);font-size:11px}#bKnock{flex:1;padding:6px 6px;font-size:11px;background:rgba(255,138,42,.2);color:#ffb37a}
+#clock{display:block!important;font-family:var(--mono);font-size:9.5px;letter-spacing:.06em;color:var(--ink2);font-variant-numeric:tabular-nums;line-height:1.3}#clock b{display:block;font-family:var(--sans);font-size:19px;letter-spacing:-.02em;color:var(--ink);font-weight:700}
+.vb{font-style:normal;margin-left:6px;padding:1px 6px;border-radius:2px;background:var(--lime);color:#0b0c0e}
 #tl{flex:1;min-width:0;height:100%;cursor:ew-resize;touch-action:none}
 #side{position:absolute;bottom:112px;left:16px;display:flex;gap:6px}#side button{padding:6px 11px;font-size:11px}
-#stage{position:absolute;top:18px;left:50%;transform:translateX(-50%);display:none;padding:8px 18px 8px 30px;font-size:12.5px;border-radius:999px;white-space:nowrap}
-#stage:before{content:"";position:absolute;left:13px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--wc);box-shadow:0 0 0 4px color-mix(in srgb,var(--wc) 25%,transparent);animation:pulse 1.4s infinite}
-@keyframes pulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--wc) 8%,transparent)}}
+#legend{position:absolute;bottom:152px;left:16px;display:flex;flex-wrap:wrap;gap:4px 12px;max-width:300px;padding:8px 11px;font-family:var(--mono);font-size:9px;letter-spacing:.06em;color:var(--ink2);pointer-events:none}
+#legend i{display:inline-block;width:14px;height:3px;margin-right:6px;vertical-align:middle;border-radius:1px}
+#stage{position:absolute;top:18px;left:50%;transform:translateX(-50%);display:none;padding:8px 18px 8px 30px;font-size:12.5px;font-weight:500;border-radius:999px;white-space:nowrap}
+#stage:before{content:"";position:absolute;left:13px;top:50%;width:9px;height:9px;margin-top:-4.5px;border-radius:50%;background:var(--wc);box-shadow:0 0 0 4px color-mix(in srgb,var(--wc) 25%,transparent),0 0 14px var(--wc);animation:pulse 1.4s infinite}
+@keyframes pulse{50%{box-shadow:0 0 0 7px color-mix(in srgb,var(--wc) 8%,transparent),0 0 20px var(--wc)}}
 #toast{position:absolute;top:60px;left:50%;transform:translateX(-50%);padding:7px 15px;font-size:11.5px;opacity:0;transition:opacity .4s;pointer-events:none;border-radius:999px;white-space:nowrap}
-#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:15px;line-height:1.8;background:#c3ccc1}
-@media (max-width:1100px){#tray{bottom:112px;left:auto;right:16px;transform:none}#parts{flex-wrap:wrap;width:212px}}
+#err{position:absolute;inset:0;display:none;align-items:center;justify-content:center;text-align:center;padding:40px;font-size:15px;line-height:1.8;background:#0b0c0e;color:var(--ink)}
+@media (max-width:1100px){#tray{bottom:112px;left:auto;right:16px;transform:none}#parts{flex-wrap:wrap;width:212px}#legend{display:none}}
 </style>
 </head>
 <body>
 <canvas id="c"></canvas>
-<div id="title">泥石流<span>MATERIAL STUDIES · Nº 08 · 拒马河谷山村</span></div>
+<div id="title">泥石流<span><b>DEBRIS FLOW</b> · 沈家庵 · 拒马河 · 39.595°N 115.679°E</span></div>
 <div id="rainbox" class="glass">
   <label>这场雨一共下 <b id="vTotal"></b><input type="range" id="total" min="20" max="800" step="10" value="150"></label>
   <label>持续 <b id="vDur"></b><input type="range" id="dur" min="1" max="72" step="1" value="12"></label>
@@ -108,6 +113,7 @@ button.wide{display:block;width:100%;margin-top:7px}
   <div id="dCmp" class="glass tile w2"></div>
 </div>
 <div id="card" class="glass"><button id="cardX">×</button><div id="cardBody"></div></div>
+<div id="legend" class="glass"><span><i style="background:#c8ff2e"></i>房屋</span><span><i style="background:#00e1ff"></i>溪流 · 进水</span><span><i style="background:#ff8a2a"></i>进泥</span><span><i style="background:#ff3dda"></i>倒塌</span><span><i style="background:#7a6bff"></i>工程</span><span><i style="background:#f2f3ef"></i>道路 · 人</span><span><i style="background:rgba(242,243,239,.35)"></i>等高线 10 m</span></div>
 <div id="side"><button id="bReset" class="glass">清空摆放</button><button id="bSound" class="glass">声音 关</button></div>
 <div id="tray" class="glass"><div id="parts"></div><div id="hintline">把零件拖进山谷摆放 · 拖回这里移除 · 也可以直接拖动房屋搬迁</div></div>
 <div id="timebar" class="glass"><div class="ctl"><div id="clock"></div><div><button id="bPlay" class="ink">▶</button><button id="bSpeed">1×</button><button id="bKnock" title="不等气象预警，现在就让村干部挨家敲门转移">现在就敲门</button></div></div><canvas id="tl"></canvas></div>
@@ -503,7 +509,7 @@ const C = {
   red: [0.72, 0.12, 0.08], wood: [0.42, 0.28, 0.16], dark: [0.12, 0.12, 0.13], glass: [0.18, 0.24, 0.3], stone: [0.6, 0.58, 0.54],
   pine: [0.2, 0.32, 0.2], poplar: [0.4, 0.53, 0.3], willow: [0.45, 0.6, 0.28], persim: [0.28, 0.45, 0.18], fruit: [1.0, 0.5, 0.08], corn: [0.98, 0.78, 0.2],
 };
-let G_DAMS = 0; const FLAGS = [], HHS = [], BRIDGES = [], DAMPOOL = [], LEVPOOL = [], SHELTERS = [];
+let G_DAMS = 0, G_GRAVEL = 0, G_LINES = 0; const FLAGS = [], HHS = [], BRIDGES = [], DAMPOOL = [], LEVPOOL = [], SHELTERS = [];
 const DYN = { houses: [], trees: [], poles: [], cars: [], rocks: [], people: [], hens: [], dogs: [], birds: [], bridge: null, chimneys: [] };
 
 // --------------------------------------------------------------- studio ---
@@ -531,20 +537,18 @@ const roadD = (x, z) => roadAt(x, z) > 0.3 ? 0 : 1;
 const PAL = { sage: [0.55, 0.63, 0.5], sageD: [0.43, 0.52, 0.41], sageL: [0.64, 0.7, 0.57], sageF: [0.6, 0.67, 0.52], sand: [0.8, 0.75, 0.62], rock: [0.6, 0.61, 0.59], rockD: [0.5, 0.52, 0.51] };
 const HZONE = new Uint8Array(N * N);   // 1 = old village, 2 = villa estates (lighter ground, gardens)
 for (const h of GEO.houses) { const x = U(h[0]), z = U(h[1]), r = h[5] ? 2 : 2; for (let dj = -r; dj <= r; dj++) for (let di = -r; di <= r; di++) { const k = cIdx(Math.floor((x + S) / CELL) + di, Math.floor((z + S) / CELL) + dj); HZONE[k] = Math.max(HZONE[k], h[5] ? 2 : 1); } }
-function terrainCol(x, z, h, ny) {
+function terrainCol(x, z, h, ny) { // graphite ground; only land form and land use, no hue
   const n = fbm2(x * 2.3, z * 2.3), n2 = vn2(x * 9, z * 9), n3 = vn2(x * 31, z * 31), sl = slopeAt(x, z), k = cellOf(x, z), rd = RD[k];
-  let c = v3.lerp(PAL.sageD, PAL.sage, n);                                                          // wooded hills
-  const floor = smooth(0.18, 0.08, sl);                                                             // valley floor: fields, orchards, meadows
-  c = v3.lerp(c, v3.lerp(PAL.sageF, PAL.sageL, 0.3 + 0.5 * n2), floor);
-  if (floor > 0.5 && HZONE[k] === 0) { const row = Math.floor((x * 0.8 + z * 0.6) * 60 + n * 3) % 3; if (row === 0) c = v3.lerp(c, PAL.sage, 0.35); }   // field strips
-  if (HZONE[k] === 1) c = v3.lerp(c, [0.68, 0.68, 0.62], 0.55);                                    // old village lanes / courtyards
-  if (HZONE[k] === 2) c = v3.lerp(c, [0.62, 0.7, 0.56], 0.45);                                     // villa gardens
-  c = v3.lerp(c, v3.lerp(PAL.rockD, PAL.rock, n2), smooth(0.55, 0.95, sl));                       // cliffs -> rock grey
-  const lo = LOOSE0[k] * VMPU; if (SRC[k] > 0.8) c = v3.lerp(c, v3.lerp([0.72, 0.66, 0.53], PAL.sand, n2), 0.35 * smooth(0.8, 2, SRC[k]));   // scree in source areas
-  if (CREEK[k] && rd > W_CH) c = v3.lerp(c, v3.lerp(PAL.rock, PAL.sand, n2 * 0.5), 0.7);           // creek gravel bed
-  if (rd < W_CH * 2.1) c = v3.lerp(c, v3.lerp(PAL.sand, PAL.rock, 0.35 + 0.3 * n2), smooth(W_CH * 2.1, W_CH * 1.1, rd));   // Juma gravel bars
-  const r = roadAt(x, z); if (r > 0) c = v3.lerp(c, [0.8, 0.78, 0.71], r * 0.9);
-  c = v3.mul(c, 0.96 + 0.08 * n3); return [c[0] ** 2.2, c[1] ** 2.2, c[2] ** 2.2];
+  let c = v3.lerp([0.15, 0.158, 0.162], [0.18, 0.186, 0.19], n);                                  // hills
+  const floor = smooth(0.18, 0.08, sl); c = v3.lerp(c, v3.lerp([0.19, 0.197, 0.198], [0.215, 0.22, 0.22], n2), floor);   // valley floor
+  if (floor > 0.5 && HZONE[k] === 0 && Math.floor((x * 0.8 + z * 0.6) * 60 + n * 3) % 3 === 0) c = v3.mul(c, 0.94);       // field strips
+  if (HZONE[k] === 1) c = v3.lerp(c, [0.25, 0.25, 0.245], 0.55);                                  // old village
+  if (HZONE[k] === 2) c = v3.lerp(c, [0.235, 0.24, 0.235], 0.45);                                 // villa estates
+  c = v3.lerp(c, [0.21, 0.212, 0.215], smooth(0.55, 0.95, sl));                                   // cliffs
+  if (SRC[k] > 0.8) c = v3.lerp(c, [0.25, 0.235, 0.215], 0.35 * smooth(0.8, 2, SRC[k]));          // scree in the debris source areas
+  if (CREEK[k] && rd > W_CH) c = v3.lerp(c, [0.27, 0.272, 0.27], 0.6);                            // creek gravel bed
+  if (rd < W_CH * 2.1) c = v3.lerp(c, [0.29, 0.29, 0.285], smooth(W_CH * 2.1, W_CH * 1.1, rd));   // Juma gravel bars
+  c = v3.mul(c, 0.97 + 0.06 * n3); return [c[0] ** 2.2, c[1] ** 2.2, c[2] ** 2.2];
 }
 // terrain grid (positions resolved on GPU from sim buffer): per vertex i, j, r, g, b
 function buildTerrainGrid() {
@@ -581,19 +585,11 @@ function buildStrata() {
 }
 
 // ---------------------------------------------------------------- props ---
-function tree(kind, s) { // local, base at origin
+function tree(kind, s) { // abstract massing (white-model style); draws the same random numbers as the old detailed trees
   const w = mb.eFn; mb.k = 3; mb.eFn = (X, Y) => clamp((Y - mb._ty) / (0.4 * s), 0, 1) * 0.8;
-  if (kind === 'pine') {
-    mb.col(C.wood); mb.k = 0; mb.cyl(0.012 * s, 0.008 * s, 0.08 * s, 5, false); mb.k = 3;
-    const c = v3.mul(C.pine, 0.85 + R() * 0.3); for (let i = 0; i < 3; i++) { mb.col(v3.mul(c, 1 + i * 0.08)); mb.at(0, (0.05 + i * 0.07) * s, 0, () => mb.cyl((0.075 - i * 0.02) * s, 0, (0.13 - i * 0.02) * s, 7, true, true)); }
-  } else if (kind === 'poplar') {
-    mb.col([0.75, 0.73, 0.66]); mb.k = 0; mb.cyl(0.012 * s, 0.008 * s, 0.16 * s, 5, false); mb.k = 3;
-    mb.col(v3.mul(C.poplar, 0.85 + R() * 0.3)); mb.at(0, 0.27 * s, 0, () => mb.rock(1, R() * 9, 1), M4.Sc(0.06 * s, 0.17 * s, 0.06 * s));
-  } else { // persimmon
-    mb.col(C.wood); mb.k = 0; mb.cyl(0.012 * s, 0.009 * s, 0.07 * s, 5, false); mb.k = 3;
-    mb.col(C.persim); mb.at(0, 0.12 * s, 0, () => mb.rock(1, R() * 9, 1), M4.Sc(0.09 * s, 0.07 * s, 0.09 * s));
-    mb.col(C.fruit); for (let i = 0; i < 9; i++) { const a = R() * TAU, y = 0.08 + R() * 0.08; mb.at(Math.cos(a) * 0.085 * s, y * s, Math.sin(a) * 0.085 * s, () => mb.sphere(0.009 * s, 4, 3)); }
-  }
+  if (kind === 'pine') { mb.col(v3.mul(C.pine, 0.85 + R() * 0.3)); mb.at(0, 0.02 * s, 0, () => mb.cyl(0.075 * s, 0, 0.3 * s, 6, false, true)); }
+  else if (kind === 'poplar') { mb.col(v3.mul(C.poplar, 0.85 + R() * 0.3)); R(); mb.at(0, 0.26 * s, 0, () => mb.sphere(1, 6, 4), M4.Sc(0.055 * s, 0.2 * s, 0.055 * s)); }
+  else { R(); mb.col(C.persim); mb.at(0, 0.12 * s, 0, () => mb.sphere(1, 6, 4), M4.Sc(0.09 * s, 0.08 * s, 0.09 * s)); for (let i = 0; i < 18; i++) R(); }
   mb.k = 0; mb.eFn = w;
 }
 function placeTree(kind, x, z, s, dyn) {
@@ -610,11 +606,12 @@ function buildForest() {
   for (let i = 0; i < 10; i++) FOREST.push(newG());
   for (let i = 0; i < 170; i++) { const g = newG(); mb.g = g; mb._ty = 0; tree('pine', TS * (0.55 + hash2(i, 3.3) * 0.25)); mb.g = 0; SAPLINGS.push({ g, pos: null }); }
   // wooded slopes (Chinese pine / oak scrub); density rises with slope, thins near ridgetops
-  for (let n = 0; n < 9000 && mb.a.length < 7.2e6; n++) {
+  let nT = 0;   // stop where the old (vertex-capped) loop stopped, so the random sequence and the village stay identical
+  for (let n = 0; n < 3747; n++) {
     const x = (R() * 2 - 1) * 4.92, z = (R() * 2 - 1) * 4.92, sl = slopeAt(x, z), k = cellOf(x, z);
     if (sl < 0.16 || sl > 1.1 || R() > smooth(0.16, 0.45, sl) || RD[k] < W_CH * 2 || roadAt(x, z) > 0.2 || nearHouse(x, z, U(25)) || DEFAULT_SAFE.some(f => Math.hypot(x - f[0], z - f[1]) < U(45))) continue;
     if (inDanger(x, z) && DYN.trees.length < 90 && R() < 0.3) { placeTree(R() < 0.8 ? 'pine' : 'poplar', x, z, TS * (0.8 + R() * 0.6), true); continue; }
-    mb.g = FOREST[Math.floor(R() * FOREST.length)]; placeTree(R() < 0.75 ? 'pine' : 'poplar', x, z, TS * (0.7 + R() * 0.6), false); mb.g = 0;
+    mb.g = FOREST[Math.floor(R() * FOREST.length)]; placeTree(R() < 0.75 ? 'pine' : 'poplar', x, z, TS * (0.7 + R() * 0.6), false); mb.g = 0; nT++;
   }
   // shrubs (荆条 / 酸枣) on the slopes
   mb.k = 3;
@@ -639,13 +636,12 @@ const HTYPES = { adobe: { name: '土坯平房', mult: 0.6 }, brick: { name: '砖
 const ZONES = ['沈家庵老村', '渡外云居', '一渡新新小镇', '一渡青青小镇'];
 const ROOF = [[0.78, 0.77, 0.73], [0.76, 0.32, 0.24], [0.35, 0.5, 0.74], [0.82, 0.55, 0.46], [0.34, 0.36, 0.38]];
 function houseMesh(w, d, kind, villa, storeys) {
-  const H1 = 3.3 * storeys / VMPU, wall = villa ? [0.9, 0.88, 0.84] : v3.mul([0.66, 0.65, 0.62], 0.92 + R() * 0.12);
-  mb.col(wall); mb.box(0, H1 / 2, 0, w, H1, d);
-  if (villa) { const rh = 2.4 / VMPU, X = w / 2 + U(0.5), Z = d / 2 + U(0.5); mb.col(v3.mul(ROOF[kind], 0.92 + R() * 0.12));
+  const H1 = 3.3 * storeys / VMPU; if (!villa) R();
+  mb.col([0.85, 0.85, 0.85]); mb.box(0, H1 / 2, 0, w, H1, d);
+  if (villa) { const rh = 2.4 / VMPU, X = w / 2 + U(0.5), Z = d / 2 + U(0.5); R(); mb.col([0.9, 0.9, 0.9]);
     mb.fquad([-X, H1, Z], [X, H1, Z], [X * 0.45, H1 + rh, 0], [-X * 0.45, H1 + rh, 0], [0, -1, 0]); mb.fquad([-X, H1, -Z], [X, H1, -Z], [X * 0.45, H1 + rh, 0], [-X * 0.45, H1 + rh, 0], [0, -1, 0]);
     mb.ftri([-X, H1, Z], [-X, H1, -Z], [-X * 0.45, H1 + rh, 0], [0, H1, 0]); mb.ftri([X, H1, Z], [X, H1, -Z], [X * 0.45, H1 + rh, 0], [0, H1, 0]); }
-  else { mb.col(v3.mul(ROOF[kind], 0.9 + R() * 0.14)); mb.box(0, H1 + U(0.12), 0, w + U(0.4), U(0.25), d + U(0.4));            // flat roof slab
-    mb.col(v3.mul(wall, 0.85)); mb.box(0, U(0.9), d / 2 + U(4), w + U(1), U(1.8), U(0.3)); mb.box(-w / 2 - U(0.5), U(0.9), d / 2 + U(2), U(0.3), U(1.8), U(4)); mb.box(w / 2 + U(0.5), U(0.9), d / 2 + U(2), U(0.3), U(1.8), U(4)); }
+  else R();
   return [-w * 0.3, H1 + U(1.5), -d * 0.2];
 }
 function buildVillage() {
@@ -701,7 +697,9 @@ function buildVillage() {
   for (let i = 0; i < 12; i++) { const p = MP[Math.floor(R() * MP.length * 0.5)], s = U(1.5 + R() * 2.5), g = newG(); mb.g = g;
     mb.col(v3.lerp([0.5, 0.47, 0.42], [0.66, 0.6, 0.5], R())); mb.rock(s, i * 5.3, 0.6); mb.g = 0;
     const x = p[0] + (R() - 0.5) * U(10), z = p[1] + (R() - 0.5) * U(10); DYN.rocks.push({ g, x, z, x0: x, z0: z, s, rot0: M4.RY(R() * 6) }); }
+  G_GRAVEL = newG(); mb.g = G_GRAVEL;
   GULLIES.forEach(g => g.pts.forEach((p, i) => { if (i % 2) return; const x = p[0] + (R() - 0.5) * U(8), z = p[1] + (R() - 0.5) * U(8); mb.col(v3.lerp([0.5, 0.48, 0.44], [0.64, 0.6, 0.54], R())); mb.at(x, terrainH(x, z), z, () => mb.rock(U(0.6 + R() * 1.2), i * 2.1 + g.gi), M4.RY(R() * 6)); }));
+  mb.g = 0;
 }
 // ------------------------------------------------- people: neighbourhoods ---
 // ~650 houses are grouped into neighbourhoods (街坊, ~14 houses) that act as one unit in the evacuation.
@@ -740,8 +738,39 @@ function buildCreatures() {
     mb.g = gw; mb.push(M4.Sc(bs, bs * VE, bs)); mb.col([0.95, 0.95, 0.94]); mb.box(0, 0, 0.03, 0.025, 0.002, 0.05); mb.box(0, 0, -0.03, 0.025, 0.002, 0.05); mb.pop(); mb.g = 0;
     const p = RIVER[Math.min(RIVER.length - 1, 4 + i * 3)], x = p[0] + U(30), z = p[1]; DYN.birds.push({ g, gw, x, z, x0: x, z0: z, y: 0, yaw: R() * 6, fly: 0, ph: R() * 6 }); }
 }
+// Roads and creeks as thin emissive ribbons draped exactly on the rendered terrain triangles.
+function bedTri(x, z) {
+  const B = SIM.pristine || HGT, gx_ = (x + S) / CELL - 0.5, gz_ = (z + S) / CELL - 0.5, i = Math.floor(gx_), j = Math.floor(gz_), u = gx_ - i, v = gz_ - j;
+  const a = B[cIdx(i, j)], b = B[cIdx(i + 1, j)], c = B[cIdx(i, j + 1)], d = B[cIdx(i + 1, j + 1)];
+  return v > u ? a + u * (d - c) + v * (c - a) : a + u * (b - a) + v * (d - b);
+}
+const chaikin = (P, n) => { for (let it = 0; it < n; it++) { const q = [P[0]]; for (let k = 0; k < P.length - 1; k++) { const a = P[k], b = P[k + 1]; q.push([a[0] * 0.75 + b[0] * 0.25, a[1] * 0.75 + b[1] * 0.25], [a[0] * 0.25 + b[0] * 0.75, a[1] * 0.25 + b[1] * 0.75]); } q.push(P[P.length - 1]); P = q; } return P; };
+function ribbon(P, wM, col) {
+  const hw = U(wM) / 2, step = U(5), E = S - CELL; mb.col(col);
+  const pts = []; for (let k = 1; k < P.length; k++) { const a = P[k - 1], b = P[k], n = Math.max(1, Math.ceil(Math.hypot(b[0] - a[0], b[1] - a[1]) / step)); for (let t = k === 1 ? 0 : 1; t <= n; t++) pts.push([lerp(a[0], b[0], t / n), lerp(a[1], b[1], t / n)]); }
+  const y = p => bedTri(p[0], p[1]) + (0.4 + 4 * slopeAt(p[0], p[1])) / VMPU;
+  for (let k = 1; k < pts.length; k++) { const a = pts[k - 1], b = pts[k]; if (Math.max(Math.abs(a[0]), Math.abs(a[1]), Math.abs(b[0]), Math.abs(b[1])) > E) continue;
+    const dx = b[0] - a[0], dz = b[1] - a[1], l = Math.hypot(dx, dz) || 1, px = -dz / l * hw, pz = dx / l * hw, ya = y(a), yb = y(b);
+    mb.tri([a[0] - px, ya, a[1] - pz], [b[0] - px, yb, b[1] - pz], [b[0] + px, yb, b[1] + pz], [0, 1, 0]); mb.tri([a[0] - px, ya, a[1] - pz], [b[0] + px, yb, b[1] + pz], [a[0] + px, ya, a[1] + pz], [0, 1, 0]); }
+}
+function buildLines() {
+  G_LINES = newG(); mb.g = G_LINES; mb.k = 4;
+  const RW = { main: [6, 0.95], lane: [3.5, 0.62], track: [2.6, 0.42], path: [1.8, 0.3] };
+  for (const r of ROADS) { const [w, b] = RW[r.k] || RW.track; ribbon(r.pts, w, [b, b, b * 0.98]); }
+  for (const g of GULLIES) ribbon(chaikin(g.pts, 2), 4, [0.0, 0.72, 1.0]);
+  mb.k = 0; mb.g = 0;
+}
+// line classes read by the outline pass: 1 terrain, 2 static, 3 no outline (trees, rocks), 4 house (+0..3 damage state),
+// 8 engineering, 9 people/animals, 10 cars, 11 emissive line ribbons
+function assignClasses() {
+  for (let g = 0; g < GMAX; g++) groupData[g * 20 + 17] = 2;
+  const set = (g, c) => { if (g) groupData[g * 20 + 17] = c; };
+  set(G_GRAVEL, 3); FOREST.forEach(g => set(g, 3)); SAPLINGS.forEach(s => set(s.g, 3)); DYN.trees.forEach(t => set(t.g, 3)); DYN.rocks.forEach(r => set(r.g, 3));
+  DYN.houses.forEach(h => set(h.gH, 4)); BRIDGES.forEach(b => { set(b.gD, 8); set(b.gP, 8); set(b.gJ, 3); }); DAMPOOL.forEach(g => set(g, 8)); LEVPOOL.forEach(g => set(g, 8)); SHELTERS.forEach(g => set(g, 8));
+  HHS.forEach(H => H.members.forEach(m => set(m.g, 9))); DYN.dogs.forEach(d => set(d.g, 9)); DYN.birds.forEach(b => { set(b.g, 9); set(b.gw, 9); }); DYN.cars.forEach(c => set(c.g, 10)); set(G_LINES, 11);
+}
 function buildAll() {
-  buildStudio(); buildStrata(); buildVillage(); buildForest(); buildCreatures();
+  buildStudio(); buildStrata(); buildVillage(); buildForest(); buildCreatures(); buildLines(); assignClasses();
   return { opaque: new Float32Array(mb.a), grid: buildTerrainGrid() };
 }
 
@@ -781,9 +810,9 @@ fn cell2At(xz: vec2f) -> vec4f {
 // clean pale grey-green backdrop (screen-space vertical gradient)
 fn bgGrad(fragXY: vec2f) -> vec3f {
   let uv = fragXY / max(vec2f(u.camRight.w, u.camUp.w), vec2f(1.0));
-  let top = vec3f(0.6, 0.66, 0.6); let bot = vec3f(0.47, 0.52, 0.47);
+  let top = vec3f(0.016, 0.017, 0.019); let bot = vec3f(0.006, 0.0065, 0.0075);
   let r = length((uv - vec2f(0.5, 0.45)) * vec2f(1.0, 1.3));
-  return mix(top, bot, smoothstep(0.0, 1.0, uv.y)) * (1.02 - 0.06 * r) * (1.0 - u.env.x * 0.3);
+  return mix(top, bot, smoothstep(0.0, 1.0, uv.y)) * (1.1 - 0.3 * r) * (1.0 - u.env.x * 0.3);
 }
 fn cell3Near(xz: vec2f) -> vec4f { let g = gridOf(xz) + 0.5; return cells3[cidx(i32(g.x), i32(g.y))]; }
 fn floodMask(xz: vec2f, which: i32) -> f32 { // bilinear indicator "debris has arrived by now"
@@ -795,10 +824,10 @@ fn floodMask(xz: vec2f, which: i32) -> f32 { // bilinear indicator "debris has a
 fn inBox(xz: vec2f) -> bool { return all(abs(xz) < vec2f(u.params.x)); }
 fn envColor(d: vec3f) -> vec3f {
   let dim = u.env.x;
-  var c = mix(vec3f(0.5, 0.55, 0.5), vec3f(0.62, 0.67, 0.62), clamp(d.y * 1.2 + 0.2, 0.0, 1.0));
+  var c = mix(vec3f(0.05, 0.055, 0.06), vec3f(0.22, 0.24, 0.27), clamp(d.y * 1.2 + 0.2, 0.0, 1.0));
   let L = normalize(u.lightDir.xyz);
-  c += vec3f(4.0, 3.7, 3.2) * smoothstep(0.93, 0.975, dot(d, L)) * (1.0 - dim * 0.85);
-  c += vec3f(1.4, 1.5, 1.7) * smoothstep(0.08, 0.0, abs(d.x + 0.3 * d.z - 0.15)) * smoothstep(0.3, 0.7, d.y) * (1.0 - dim * 0.85);
+  c += vec3f(3.0, 3.0, 3.0) * smoothstep(0.93, 0.975, dot(d, L)) * (1.0 - dim * 0.85);
+  c += vec3f(0.5, 0.55, 0.6) * smoothstep(0.08, 0.0, abs(d.x + 0.3 * d.z - 0.15)) * smoothstep(0.3, 0.7, d.y) * (1.0 - dim * 0.85);
   c *= (1.0 - dim * 0.65);
   return c + vec3f(0.8, 0.85, 1.2) * u.env.y * 2.0;
 }
@@ -827,7 +856,7 @@ fn shade(alb: vec3f, N: vec3f, wp: vec3f, specK: f32, ao: f32) -> vec3f {
   let hemi = mix(vec3f(0.24, 0.24, 0.21), vec3f(0.42, 0.46, 0.43), N.y * 0.5 + 0.5) * (1.0 - dim * 0.4);
   let fill = vec3f(0.35, 0.4, 0.5) * max(dot(N, normalize(vec3f(0.6, 0.3, -0.7))), 0.0) * 0.4 * (1.0 - dim * 0.5);
   let H = normalize(L + V);
-  let spec = pow(max(dot(N, H), 0.0), 40.0 + specK * 60.0) * (0.12 + specK * 0.6) * sh * sunI;
+  let spec = pow(max(dot(N, H), 0.0), 40.0 + specK * 60.0) * (0.015 + specK * 0.5) * sh * sunI;
   return alb * (lit + (hemi + fill) * ao) + vec3f(spec) + alb * flash * vec3f(0.9, 0.95, 1.3) * (0.4 + 0.6 * max(N.y, 0.0)) * 1.5;
 }
 fn mudCol(xz: vec2f, c: f32) -> vec3f {
@@ -837,7 +866,10 @@ fn mudCol(xz: vec2f, c: f32) -> vec3f {
 
 // ---------------------------------------------------------- meshes -------
 struct VIn { @location(0) pos: vec3f, @location(1) nrm: vec3f, @location(2) col: vec3f, @location(3) gem: vec3f };
-struct VOut { @builtin(position) pos: vec4f, @location(0) wp: vec3f, @location(1) n: vec3f, @location(2) col: vec3f, @location(3) em: vec2f };
+struct VOut { @builtin(position) pos: vec4f, @location(0) wp: vec3f, @location(1) n: vec3f, @location(2) col: vec3f, @location(3) em: vec2f, @location(4) @interpolate(flat) cls: f32 };
+struct GOut { @location(0) c: vec4f, @location(1) g: vec4f };
+// G-buffer for the outline pass: world normal x/z, line class, distance to the camera
+fn gbuf(n: vec3f, cls: f32, wp: vec3f) -> vec4f { return vec4f(n.x, n.z, cls, length(u.camPos.xyz - wp)); }
 fn worldOf(inp: VIn) -> array<vec3f, 2> {
   let g = groups[u32(inp.gem.x + 0.5)];
   var wp = (g.m * vec4f(inp.pos, 1.0)).xyz;
@@ -852,19 +884,33 @@ fn worldOf(inp: VIn) -> array<vec3f, 2> {
 @vertex fn vsMain(inp: VIn) -> VOut {
   let w = worldOf(inp); let g = groups[u32(inp.gem.x + 0.5)];
   var o: VOut; o.pos = u.viewProj * vec4f(w[0], 1.0); o.wp = w[0]; o.n = w[1]; o.col = inp.col;
-  o.em = vec2f(select(inp.gem.y * g.p.x, 0.0, inp.gem.z > 2.5), inp.gem.z); return o;
+  o.em = vec2f(select(inp.gem.y * g.p.x, 0.0, inp.gem.z > 2.5), inp.gem.z); o.cls = g.p.y + g.p.z; return o;
 }
 @vertex fn vsShadow(inp: VIn) -> @builtin(position) vec4f { let w = worldOf(inp); return u.lightVP * vec4f(w[0], 1.0); }
-@fragment fn fsMain(i: VOut) -> @location(0) vec4f {
+@fragment fn fsMain(i: VOut) -> GOut {
   let V = normalize(u.camPos.xyz - i.wp);
   var N = normalize(i.n); if (dot(N, V) < 0.0) { N = -N; }
-  var alb = i.col; var ao = 1.0; var specK = 0.0;
-  if (i.em.y > 0.5 && i.em.y < 1.5) { // studio floor: invisible except for its soft shadow
+  let fwg = max(fwidth(i.wp.xz), vec2f(1e-5));
+  var o: GOut;
+  if (i.em.y > 0.5 && i.em.y < 1.5) { // studio floor: drafting grid fading out around the block
     let S = u.params.x; let q = abs(i.wp.xz) - vec2f(S); let d = max(length(max(q, vec2f(0.0))), 0.0);
-    let contact = 1.0 - 0.42 * exp(-d * 1.6) - 0.18 * exp(-d * 6.0);
-    let sh = shadowAtR(i.wp, vec3f(0.0, 1.0, 0.0), 4.0);
-    return vec4f(bgGrad(i.pos.xy) * contact * mix(0.72, 1.0, sh), 1.0);
+    let gq = abs(fract(i.wp.xz - 0.5) - 0.5) / fwg; let gl = 1.0 - clamp(min(gq.x, gq.y), 0.0, 1.0);
+    let tq = abs(fract(i.wp.xz * 5.0 - 0.5) - 0.5) / (fwg * 5.0); let tl = 1.0 - clamp(min(tq.x, tq.y), 0.0, 1.0);
+    let fade = exp(-d * 0.22) * step(0.001, d);
+    o.c = vec4f(bgGrad(i.pos.xy) + vec3f(0.55, 0.58, 0.6) * (gl * 0.012 + tl * 0.003) * fade, 1.0); o.g = vec4f(0.0, 0.0, 0.0, 1000.0); return o;
   }
+  if (i.em.y > 3.5) { // emissive line ribbon (roads, creeks)
+    o.c = vec4f(i.col * (1.0 - u.env.x * 0.3) + i.col * u.env.y * 0.4, 1.0); o.g = gbuf(vec3f(0.0, 1.0, 0.0), 11.0, i.wp); return o;
+  }
+  // white model: houses / works / people white, trees and rocks graphite, the rest neutral grey
+  let cls = i.cls; let lum = dot(i.col, vec3f(0.3, 0.55, 0.15));
+  var alb = mix(vec3f(lum), i.col, 0.25) * 0.2; var ao = 1.0; var specK = 0.0;
+  if (cls > 3.5 && cls < 7.5) { alb = vec3f(select(0.78, 0.86, N.y > 0.6));
+    if (cls > 6.5) { alb = mix(alb, vec3f(1.0, 0.16, 0.82) * 0.55, 0.5); } else if (cls > 4.5 && cls < 5.5) { alb = mix(alb, vec3f(0.0, 0.75, 0.9), 0.12); } }
+  else if (cls > 7.5 && cls < 8.5) { alb = vec3f(0.84, 0.83, 0.9); }
+  else if (cls > 8.5 && cls < 9.5) { alb = vec3f(0.95); }
+  else if (cls > 9.5) { alb = vec3f(0.42); }
+  else if (cls > 2.5) { alb = mix(vec3f(lum), i.col, 0.2) * 0.13; }
   if (inBox(i.wp.xz)) {
     let c2 = cell2At(i.wp.xz); let wet = max(c2.x, u.env.w);
     if (i.em.y < 0.5 || i.em.y > 2.5) { alb *= 1.0 - 0.32 * wet; specK = wet * 0.5; }
@@ -876,7 +922,8 @@ fn worldOf(inp: VIn) -> array<vec3f, 2> {
     }
   }
   var c = shade(alb, N, i.wp, specK, ao) + i.col * i.em.x;
-  return vec4f(c, 1.0);
+  if (cls > 8.5 && cls < 9.5) { c += vec3f(0.25); }   // people stay readable in the storm
+  o.c = vec4f(c, 1.0); o.g = gbuf(N, cls, i.wp); return o;
 }
 
 // ---------------------------------------------------------- terrain ------
@@ -898,48 +945,42 @@ fn terrPos(d: vec2f, surf: bool) -> array<vec3f, 2> {
   var o: TOut; o.pos = u.viewProj * vec4f(p[0], 1.0); o.wp = p[0]; o.n = p[1]; o.col = inp.col; o.info = vec4f(lap, c.y, c.z, c.w); return o;
 }
 @vertex fn vsTerrainShadow(inp: TIn) -> @builtin(position) vec4f { let p = terrPos(inp.d, false); return u.lightVP * vec4f(p[0], 1.0); }
-@fragment fn fsTerrain(i: TOut) -> @location(0) vec4f {
-  let cy = i.wp.y / 0.06; let fw = max(fwidth(cy), 1e-4);
-  let cdist = abs(fract(cy - 0.5) - 0.5) / fw; let line = 1.0 - clamp(cdist / 0.9, 0.0, 1.0);
-  let my = cy / 5.0; let mdist = abs(fract(my - 0.5) - 0.5) / max(fwidth(my), 1e-4); let major = 1.0 - clamp(mdist / 1.1, 0.0, 1.0);
+@fragment fn fsTerrain(i: TOut) -> GOut {
+  // contours every 10 m, index contour every 50 m (derivatives first: uniform control flow)
+  let cy = i.wp.y / ${10 / VMPU}; let fw = max(fwidth(cy), 1e-4);
+  let line = 1.0 - clamp(abs(fract(cy - 0.5) - 0.5) / fw / 0.8, 0.0, 1.0);
+  let my = cy / 5.0; let major = 1.0 - clamp(abs(fract(my - 0.5) - 0.5) / max(fwidth(my), 1e-4) / 1.0, 0.0, 1.0);
   let N = normalize(i.n); let xz = i.wp.xz;
   let c2 = cell2At(xz); let wet = max(c2.x, u.env.w);
-  var alb = i.col * (0.95 + 0.1 * vnoise(xz * 22.0));
-  // player's measures: masonry (dams, levees), lined chute, afforested patches
+  var alb = i.col;
+  // player's measures: afforested patches as lime hatch, masonry (dams, levees, chute) in violet
   let c3 = cell3Near(xz);
-  if (c3.y > 0.5) { alb = mix(alb, vec3f(0.12, 0.2, 0.1) * (0.8 + 0.4 * vnoise(xz * 50.0)), 0.75); }
-  if (c3.x > 0.5) { let blk = step(0.9, fract(xz.x * 90.0 + floor(xz.y * 60.0) * 0.5)) + step(0.88, fract(xz.y * 60.0));
-    let stone = select(vec3f(0.44, 0.44, 0.42), vec3f(0.6, 0.6, 0.58), c3.x > 1.5);
-    alb = stone * (0.9 + 0.15 * vnoise(xz * 80.0)) * (1.0 - 0.2 * clamp(blk, 0.0, 1.0)); }
-  // hillshade (fixed NW illumination, cartographic)
+  if (c3.y > 0.5) { let ht = step(0.72, fract((xz.x - xz.y) * 40.0)); alb = mix(alb, vec3f(0.42, 0.7, 0.06) * 0.4, 0.2 + 0.6 * ht); }
+  if (c3.x > 0.5) { alb = select(vec3f(0.2, 0.18, 0.55), vec3f(0.3, 0.27, 0.75), c3.x > 1.5); }
+  // hillshade (fixed NW light) + curvature: the land form is read from light, not colour
   let hs = clamp(dot(N, normalize(vec3f(-0.7, 0.9, -0.6))), 0.0, 1.0);
-  alb *= 0.8 + 0.3 * hs;
-  // cavity / ridge shading from terrain curvature (valleys darker, crests lighter)
-  let cav = clamp(i.info.x * 0.01, -0.3, 0.4); alb *= 1.0 - max(cav, 0.0) * 0.55 + max(-cav, 0.0) * 0.22;
-  // fine grain: grass tufts, stones
-  alb *= 0.94 + 0.12 * vnoise(xz * 70.0) * vnoise(xz * 23.0 + 3.1);
-  alb *= 1.0 - 0.36 * wet;
-  // fresh deposit / scar
+  alb *= 0.5 + 0.8 * hs;
+  let cav = clamp(i.info.x * 0.01, -0.3, 0.4); alb *= 1.0 - max(cav, 0.0) * 0.5 + max(-cav, 0.0) * 0.25;
+  alb *= 1.0 - 0.3 * wet;
+  // the debris itself stays realistic: fresh deposit, scar, boulders
   let dep = cellAt(xz).w;
   let fresh = smoothstep(0.003, 0.03, dep);
   let lobes = 0.85 + 0.15 * sin(dep * 260.0 + vnoise(xz * 6.0) * 4.0);
   alb = mix(alb, mudCol(xz, 0.3) * lobes * (1.0 - 0.25 * wet), fresh);
   let scar = smoothstep(-0.004, -0.03, dep);
-  alb = mix(alb, mix(vec3f(0.62, 0.5, 0.36), vec3f(0.5, 0.4, 0.3), vnoise(xz * 9.0)) * (1.0 - 0.3 * wet), scar);
-  // boulders peppering fresh deposits
+  alb = mix(alb, mix(vec3f(0.5, 0.4, 0.29), vec3f(0.4, 0.32, 0.24), vnoise(xz * 9.0)) * (1.0 - 0.3 * wet), scar);
   let bn = vnoise(xz * 40.0); alb = mix(alb, vec3f(0.55, 0.52, 0.47) * (0.8 + bn * 0.3), step(0.82, bn) * fresh * 0.8);
-  // contour lines every 0.06, index contour every 5th
-  alb *= 1.0 - line * 0.07 - major * 0.1;
-  // comparison overlay: green hatch = flooded in 现状 but saved by 方案, orange = newly flooded by 方案
+  // comparison overlay: lime hatch = saved by 方案, magenta hatch = newly hit by 方案
+  var glow = vec3f(0.0);
   if (u.extra.y > 0.5) {
-    let b = floodMask(xz, 0); let p = floodMask(xz, 1); let hatch = step(0.5, fract((xz.x + xz.y) * 16.0));
+    let b = floodMask(xz, 0); let p = floodMask(xz, 1); let hatch = step(0.6, fract((xz.x + xz.y) * 16.0));
     let saved = b * (1.0 - p); let added = p * (1.0 - b);
-    alb = mix(alb, mix(vec3f(0.16, 0.45, 0.24), vec3f(0.3, 0.62, 0.36), hatch), saved * 0.7);
-    alb = mix(alb, mix(vec3f(0.62, 0.32, 0.06), vec3f(0.8, 0.46, 0.12), hatch), added * 0.75);
-    let edge = clamp(1.0 - abs(b - 0.5) * 6.0, 0.0, 1.0); alb = mix(alb, vec3f(0.12, 0.14, 0.12), edge * 0.55);
+    glow += vec3f(0.5, 1.0, 0.08) * saved * (0.04 + 0.1 * hatch) + vec3f(1.0, 0.15, 0.8) * added * (0.04 + 0.12 * hatch);
+    let edge = clamp(1.0 - abs(b - 0.5) * 6.0, 0.0, 1.0); glow += vec3f(0.6) * edge * 0.1;
   }
-  let c = shade(alb, N, i.wp, wet * 0.4 + fresh * 0.2, 1.0);
-  return vec4f(c, 1.0);
+  var c = shade(alb, N, i.wp, wet * 0.4 + fresh * 0.2, 1.0) + glow;
+  c += vec3f(0.48, 0.52, 0.56) * (line * 0.03 + major * 0.08) * (1.0 - fresh) * (1.0 - u.env.x * 0.4);
+  var o: GOut; o.c = vec4f(c, 1.0); o.g = gbuf(N, 1.0, i.wp); return o;
 }
 
 // ---------------------------------------------------------- flow surface --
@@ -982,7 +1023,7 @@ fn terrPos(d: vec2f, surf: bool) -> array<vec3f, 2> {
 @vertex fn vsBg(@builtin(vertex_index) vi: u32) -> @builtin(position) vec4f {
   var p = array<vec2f, 3>(vec2f(-1, -1), vec2f(3, -1), vec2f(-1, 3)); return vec4f(p[vi], 0.9999, 1.0);
 }
-@fragment fn fsBg(@builtin(position) fp: vec4f) -> @location(0) vec4f { return vec4f(bgGrad(fp.xy), 1.0); }
+@fragment fn fsBg(@builtin(position) fp: vec4f) -> GOut { var o: GOut; o.c = vec4f(bgGrad(fp.xy), 1.0); o.g = vec4f(0.0, 0.0, 0.0, 1000.0); return o; }
 
 // ---------------------------------------------------------- particles ----
 struct PIn { @location(0) ps: vec4f, @location(1) col: vec4f, @location(2) ax: vec4f };
@@ -1007,19 +1048,56 @@ struct POut { @builtin(position) pos: vec4f, @location(0) col: vec4f, @location(
 const WGSL_POST = /* wgsl */`
 @group(0) @binding(0) var tex: texture_2d<f32>;
 @group(0) @binding(1) var smp: sampler;
-@group(0) @binding(2) var<uniform> pu: vec4f;
+@group(0) @binding(2) var<uniform> pu: vec4f;   // time, flash, dim, device pixel ratio
+@group(0) @binding(3) var gt: texture_multisampled_2d<f32>;   // read one sample: classes must never be averaged
 struct O { @builtin(position) pos: vec4f, @location(0) uv: vec2f };
 @vertex fn vs(@builtin(vertex_index) i: u32) -> O {
   var p = array<vec2f, 3>(vec2f(-1, -1), vec2f(3, -1), vec2f(-1, 3));
   var o: O; o.pos = vec4f(p[i], 0, 1); o.uv = p[i] * vec2f(0.5, -0.5) + 0.5; return o;
 }
 fn aces(x: vec3f) -> vec3f { return clamp((x * (2.51 * x + 0.03)) / (x * (2.43 * x + 0.59) + 0.14), vec3f(0.0), vec3f(1.0)); }
+fn G(p: vec2i) -> vec4f { let d = vec2i(textureDimensions(gt)); return textureLoad(gt, clamp(p, vec2i(0), d - 1), 0); }
+// neon palette per class (sRGB, alpha = strength); 0 = no outline
+fn lineCol(c: f32) -> vec4f {
+  let k = i32(c + 0.5);
+  switch k {
+    case 1: { return vec4f(0.62, 0.66, 0.7, 0.3); }
+    case 2: { return vec4f(0.62, 0.66, 0.7, 0.4); }
+    case 4: { return vec4f(0.78, 1.0, 0.18, 1.0); }    // house: lime
+    case 5: { return vec4f(0.0, 0.88, 1.0, 1.0); }     // flooded: cyan
+    case 6: { return vec4f(1.0, 0.54, 0.16, 1.0); }    // mud inside: orange
+    case 7: { return vec4f(1.0, 0.24, 0.85, 1.0); }    // collapsed: magenta
+    case 8: { return vec4f(0.48, 0.42, 1.0, 1.0); }    // engineering: violet
+    case 9: { return vec4f(1.0, 1.0, 1.0, 0.95); }     // people
+    case 10: { return vec4f(0.66, 0.68, 0.72, 0.5); }  // cars
+    default: { return vec4f(0.0); }
+  }
+}
+fn nrm(g: vec4f) -> vec3f { return vec3f(g.x, sqrt(max(0.0, 1.0 - g.x * g.x - g.y * g.y)), g.y); }
+fn edgeAt(p: vec2i, o: i32) -> vec4f {
+  let c = G(p); let l = G(p + vec2i(-o, 0)); let r = G(p + vec2i(o, 0)); let t = G(p + vec2i(0, -o)); let b = G(p + vec2i(0, o));
+  var f = c; if (l.w < f.w) { f = l; } if (r.w < f.w) { f = r; } if (t.w < f.w) { f = t; } if (b.w < f.w) { f = b; }   // nearest sample owns the line
+  let lc = lineCol(f.z); if (lc.a <= 0.0) { return vec4f(0.0); }
+  let mesh = f.z > 1.5;
+  // class change: drawn only on the outer side (the pixel behind the object), so small houses keep a white core
+  var e = step(0.5, max(max(abs(l.z - c.z), abs(r.z - c.z)), max(abs(t.z - c.z), abs(b.z - c.z)))) * step(f.w + 1e-3, c.w);
+  let lap = max(abs(l.w + r.w - 2.0 * c.w), abs(t.w + b.w - 2.0 * c.w)) / max(c.w, 1e-3);               // depth crease / silhouette
+  let kd = select(0.06, 0.012, mesh); e = max(e, smoothstep(kd, kd * 2.0, lap));
+  if (mesh) { let nc = nrm(c); let nd = min(min(dot(nc, nrm(l)), dot(nc, nrm(r))), min(dot(nc, nrm(t)), dot(nc, nrm(b)))); e = max(e, smoothstep(0.82, 0.6, nd)); }
+  var a = lc.a; if (!mesh && min(min(min(l.z, r.z), min(t.z, b.z)), c.z) < 0.5) { a = 0.65; }       // outline of the terrain block
+  return vec4f(lc.rgb, e * a);
+}
 @fragment fn fs(i: O) -> @location(0) vec4f {
-  var c = textureSampleLevel(tex, smp, i.uv, 0.0).rgb;
+  let s = textureSampleLevel(tex, smp, i.uv, 0.0); var c = s.rgb;
   let l = dot(c, vec3f(0.3, 0.55, 0.15)); c = mix(c, vec3f(l) * vec3f(0.92, 0.97, 1.05), pu.z * 0.35);
   c = aces(c * 1.08);
-  let v = i.uv - 0.5; c *= 1.0 - dot(v, v) * (0.18 + pu.z * 0.5);
+  let v = i.uv - 0.5; c *= 1.0 - dot(v, v) * (0.25 + pu.z * 0.5);
   c = pow(c, vec3f(1.0 / 2.2));
+  // neon line work on top (hidden under water / mud by the alpha the flow pass left behind)
+  let px = vec2i(i.pos.xy); let o1 = i32(max(1.0, round(pu.w * 0.75)));
+  let e1 = edgeAt(px, o1); let e2 = edgeAt(px, o1 * 3); let vis = clamp(s.a, 0.0, 1.0) * (1.0 - pu.z * 0.25);
+  c = mix(c, e1.rgb, clamp(e1.a, 0.0, 1.0) * vis);
+  c += e2.rgb * e2.a * 0.1 * vis;   // glow
   c += (fract(sin(dot(i.uv * 1000.0 + pu.x, vec2f(12.9898, 78.233))) * 43758.5453) - 0.5) / 255.0 * 1.5;
   return vec4f(c, 1.0);
 }
@@ -1041,7 +1119,7 @@ const vis = { dim: 0, flash: 0, wetG: 0 };   // purely visual smoothing
 const SEC_FLOW = 0.5, CLOCK0 = 14 * 3600, BIN = 600;
 let T_TOTAL = 17 * 3600, SEC_CALM = 10;
 const RAIN_CLASS = r => r <= 0.5 ? '无雨' : r < 2.5 ? '小雨' : r < 8 ? '中雨' : r < 16 ? '大雨' : r < 50 ? '暴雨' : '特大暴雨';
-const STAGE = ['', '村广播：注意防范', '挨家敲门：马上转移', '来泥了'], STAGE_S = ['', '广播', '敲门', '来泥了'], SCOL = ['#9aa59c', '#6f93b4', '#d38a3a', '#b8473a'];
+const STAGE = ['', '村广播：注意防范', '挨家敲门：马上转移', '来泥了'], STAGE_S = ['', '广播', '敲门', '来泥了'], SCOL = ['#8a8d90', '#00e1ff', '#ff8a2a', '#ff3dda'];
 // Rain = event total (mm) over a duration (h). Short storms are peaky, long ones are flat
 // (peak 1-h rate / mean rate falls from ~3.8 for 1 h to ~1.8 for 72 h).
 const peakiness = () => clamp(3.8 - 1.1 * Math.log10(Math.max(1, ENV.dur)), 1.6, 3.8);
@@ -1480,6 +1558,7 @@ function applyVisuals(dt) {
 
   SAPLINGS.forEach((sp, i) => setG(sp.g, sp.pos ? M4.ch(M4.T(sp.pos[0], sp.pos[1] - 0.004, sp.pos[2]), M4.RY(i * 2.4)) : ZERO));
   DYN.houses.forEach((H, i) => { const h = st.hs[i], ax = [h.tdir[1], 0, -h.tdir[0]], sink = (h.tilt * 1.5 + Math.min(h.maxMud, 1.5) * 0.3) / VMPU, off = h.tilt * U(4);
+    groupData[H.gH * 20 + 18] = h.tilt > 0.5 ? 3 : h.maxMud > MUD_M ? 2 : h.maxWat > WAT_M ? 1 : 0;
     setG(H.gH, M4.ch(M4.T(H.x + h.tdir[0] * off, H.y - sink, H.z + h.tdir[1] * off), M4.axis(ax, -h.tilt * 0.9), M4.RY(H.yaw), M4.Sc(1, 1 - h.tilt * 0.45, 1)));
     if (H.gW) setG(H.gW, h.wallFall > 0.98 ? ZERO : M4.ch(M4.T(H.x, H.y - h.wallFall * 0.3 / VMPU, H.z), M4.RY(H.yaw), M4.Sc(1, 1 - h.wallFall * 0.9, 1))); });
   DYN.trees.forEach((T, i) => { const tr = st.tr[i];
@@ -1589,7 +1668,7 @@ function updateParticles(dt) {
   // comparison markers above each house: green = saved by the scheme, red = still lost, orange = newly affected
   if (RUNS.base && RUNS.plan && RUNS.cmpMap && VIEW === 'plan') DYN.houses.forEach((H, i) => {
     const bL = RUNS.base.houses[i].tilt > 0.5 || RUNS.base.houses[i].dmg > 0.15, pL = RUNS.plan.houses[i].tilt > 0.5 || RUNS.plan.houses[i].dmg > 0.15; if (!bL && !pL) return;
-    const c = bL && !pL ? [0.3, 1.6, 0.6] : pL && !bL ? [2.2, 1.1, 0.2] : [2.2, 0.4, 0.3], y = H.y + 0.1 + Math.sin(anim.t * 3 + i) * 0.004;
+    const c = bL && !pL ? [1.4, 2.4, 0.2] : pL && !bL ? [2.6, 1.1, 0.2] : [2.6, 0.3, 2.2], y = H.y + 0.1 + Math.sin(anim.t * 3 + i) * 0.004;
     P(H.x, y, H.z, U(7), c[0], c[1], c[2], 0.9, 1); P(H.x, y - 0.05, H.z, 0.002, c[0], c[1], c[2], 0.5, 3, 0, 0.04, 0); });
 }
 // how dangerous is this spot? Uses the last computed flood footprint if we have one, otherwise a
@@ -1605,7 +1684,7 @@ function ring(x, z, r, c, a = 0.85) { for (let i = 0; i < 28; i++) { const a0 = 
   const y0 = groundAt(p0[0], p0[1]) + 0.01, y1 = groundAt(p1[0], p1[1]) + 0.01; P(p0[0], y0, p0[1], 0.004, c[0], c[1], c[2], a, 3, p1[0] - p0[0], y1 - y0, p1[1] - p0[1]); } }
 function drawToolPreview() {
   const g = UI.ghost; if (!g) return;
-  if (g.type === 'shelter' || g.type === 'house') { const hz = hazardAt(g.x, g.z), c = hz > 0.5 ? [2.6, 0.5, 0.35] : hz > 0.2 ? [2.4, 1.5, 0.3] : [0.4, 2.2, 0.9];
+  if (g.type === 'shelter' || g.type === 'house') { const hz = hazardAt(g.x, g.z), c = hz > 0.5 ? [2.6, 0.3, 2.2] : hz > 0.2 ? [2.6, 1.1, 0.2] : [1.7, 2.6, 0.25];
     ring(g.x, g.z, U(40), c); ring(g.x, g.z, U(30), c, 0.4); }
   if (g.type === 'chute') { const pts = chutePts(g); for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], ya = groundAt(a[0], a[1]) + 0.01, yb = groundAt(b[0], b[1]) + 0.01;
     for (const o of [-U(8), U(8)]) P(a[0] + o, ya, a[1], 0.004, 2.3, 2.3, 2.2, 0.8, 3, b[0] - a[0], yb - ya, b[1] - a[1]); } }
@@ -1620,7 +1699,7 @@ function drawRoute(hi) {
   else if (hs.state === 'home') { const r = route(DYN.houses[H.house].gateNode); if (r) pts = r.nodes.map(i => NET.nodes[i]); UI.preview = r; }
   if (!pts) return; const ok = hs.state !== 'caught';
   for (let i = 1; i < pts.length; i++) { const a = pts[i - 1], b = pts[i], ya = groundAt(a[0], a[1]) + 0.008, yb = groundAt(b[0], b[1]) + 0.008;
-    P(a[0], ya, a[1], 0.004, ok ? 2.2 : 3, ok ? 2.4 : 0.8, ok ? 2.4 : 0.6, 0.85, 3, b[0] - a[0], yb - ya, b[1] - a[1]); }
+    P(a[0], ya, a[1], 0.004, ok ? 1.7 : 3, ok ? 2.6 : 0.4, ok ? 0.25 : 2.4, 0.9, 3, b[0] - a[0], yb - ya, b[1] - a[1]); }
 }
 function bolt() {
   const x = (rr_() * 2 - 1) * 4.5, z = -4.8 + rr_() * 3, tgt = [x, terrainH(x, z) + 0.05, z], segs = [];
@@ -1646,7 +1725,7 @@ function thunder(delay) {
 }
 
 // ----------------------------------------------------------- camera ------
-const cam = { yaw: 0.55, pitch: 0.55, dist: 16.5, target: [0, 1.0, 0.4], fov: 38 * Math.PI / 180, eye: [0, 10, 20], f: [0, 0, -1], r: [1, 0, 0], u: [0, 1, 0], aspect: 1.5 };
+const cam = { yaw: 0.55, pitch: 0.58, dist: 13, target: [0, 1.0, 0.4], fov: 38 * Math.PI / 180, eye: [0, 10, 20], f: [0, 0, -1], r: [1, 0, 0], u: [0, 1, 0], aspect: 1.5 };
 function updateCam(aspect) {
   const cp = Math.cos(cam.pitch); cam.eye = v3.add(cam.target, [cp * Math.sin(cam.yaw) * cam.dist, Math.sin(cam.pitch) * cam.dist, cp * Math.cos(cam.yaw) * cam.dist]);
   cam.f = v3.norm(v3.sub(cam.target, cam.eye)); cam.r = v3.norm(v3.cross(cam.f, [0, 1, 0])); cam.u = v3.cross(cam.r, cam.f); cam.aspect = aspect;
@@ -1847,16 +1926,16 @@ function drawTimeline() {
   const c = $('tl'), dpr = Math.min(devicePixelRatio || 1, 2), w = c.clientWidth, h = c.clientHeight; if (!w) return;
   if (c.width !== Math.round(w * dpr) || c.height !== Math.round(h * dpr)) { c.width = Math.round(w * dpr); c.height = Math.round(h * dpr); }
   const g = c.getContext('2d'); g.setTransform(dpr, 0, 0, dpr, 0, 0); g.clearRect(0, 0, w, h);
-  const X = t => 8 + clamp(t / T_TOTAL, 0, 1) * (w - 16), base = h - 18, top = 24, ink = 'rgba(31,42,36,';
-  g.font = '10.5px -apple-system,"PingFang SC",system-ui'; g.textBaseline = 'middle';
+  const X = t => 8 + clamp(t / T_TOTAL, 0, 1) * (w - 16), base = h - 18, top = 24, ink = 'rgba(242,243,239,';
+  g.font = '10px "SF Mono",ui-monospace,Menlo,"PingFang SC",monospace'; g.textBaseline = 'middle';
   // rain curve
   let mx = 1; for (let t = 0; t < T_TOTAL; t += T_TOTAL / 300) mx = Math.max(mx, rainAt(t));
   const Y = r => base - r / mx * (base - top) * 0.92, now = X(st.t);
   const curve = () => { g.beginPath(); g.moveTo(X(0), base); for (let i = 0; i <= 300; i++) { const t = i / 300 * T_TOTAL; g.lineTo(X(t), Y(rainAt(t))); } g.lineTo(X(T_TOTAL), base); g.closePath(); };
   g.save(); curve(); g.clip();
-  const gr = g.createLinearGradient(0, top, 0, base); gr.addColorStop(0, 'rgba(70,104,124,.62)'); gr.addColorStop(1, 'rgba(70,104,124,.22)');
-  g.fillStyle = gr; g.fillRect(8, 0, now - 8, h); g.fillStyle = 'rgba(70,104,124,.16)'; g.fillRect(now, 0, w - now, h); g.restore();
-  g.beginPath(); for (let i = 0; i <= 300; i++) { const t = i / 300 * T_TOTAL; i ? g.lineTo(X(t), Y(rainAt(t))) : g.moveTo(X(t), Y(rainAt(t))); } g.strokeStyle = 'rgba(60,92,110,.55)'; g.lineWidth = 1; g.stroke();
+  const gr = g.createLinearGradient(0, top, 0, base); gr.addColorStop(0, 'rgba(0,225,255,.55)'); gr.addColorStop(1, 'rgba(0,225,255,.12)');
+  g.fillStyle = gr; g.fillRect(8, 0, now - 8, h); g.fillStyle = 'rgba(0,225,255,.08)'; g.fillRect(now, 0, w - now, h); g.restore();
+  g.beginPath(); for (let i = 0; i <= 300; i++) { const t = i / 300 * T_TOTAL; i ? g.lineTo(X(t), Y(rainAt(t))) : g.moveTo(X(t), Y(rainAt(t))); } g.strokeStyle = 'rgba(0,225,255,.8)'; g.lineWidth = 1; g.stroke();
   g.fillStyle = ink + '.4)'; g.textAlign = 'left'; g.fillText(`雨强 · 最大约 ${Math.round(mx)} mm/h`, 10, top - 2);
   // baseline + ticks
   g.fillStyle = ink + '.14)'; g.fillRect(8, base, w - 16, 1);
@@ -1867,7 +1946,7 @@ function drawTimeline() {
   for (const m of timelineMarks()) { const x = X(m.t), col = SCOL[m.lv], tw = g.measureText(m.label).width + 18;
     g.globalAlpha = m.pred ? 0.5 : 1; g.fillStyle = col; g.fillRect(x - 0.5, 22, 1, base - 22);
     const x0 = clamp(x - tw / 2, 8, w - 8 - tw), y0 = x0 < lastR ? -999 : 4;
-    if (y0 > 0) { g.fillStyle = m.pred ? 'rgba(255,255,255,.3)' : 'rgba(255,255,255,.7)'; rr(g, x0, y0, tw, 16, 8); g.fill();
+    if (y0 > 0) { g.fillStyle = m.pred ? 'rgba(255,255,255,.04)' : 'rgba(255,255,255,.1)'; rr(g, x0, y0, tw, 16, 8); g.fill();
       if (m.pred) { g.setLineDash([2, 2]); g.strokeStyle = col; rr(g, x0 + 0.5, y0 + 0.5, tw - 1, 15, 7.5); g.stroke(); g.setLineDash([]); }
       g.fillStyle = col; g.beginPath(); g.arc(x0 + 8, y0 + 8, 3, 0, TAU); g.fill(); g.fillStyle = ink + '.85)'; g.textAlign = 'left'; g.fillText(m.label, x0 + 14, y0 + 8.5);
       lastR = x0 + tw + 4; CHIPS.push({ x: x0 + tw / 2, w: tw, t: m.t }); }
@@ -1877,7 +1956,7 @@ function drawTimeline() {
   if (UI.tlHover > 8 && !TL.drag) { const t = (UI.tlHover - 8) / (w - 16) * T_TOTAL, fc = forecast(), lines = [fmtClock(t), `雨强 ${rainAt(t).toFixed(0)} mm/h · 累计 ${Math.round(fcAt(fc.P, t) - 0.8 * ENV.ante)} mm`];
     const bw = Math.max(...lines.map(s => g.measureText(s).width)) + 16, bx = clamp(UI.tlHover + 10, 8, w - bw - 8);
     g.fillStyle = ink + '.2)'; g.fillRect(UI.tlHover - 0.5, 22, 1, base - 22);
-    g.fillStyle = 'rgba(250,252,250,.94)'; rr(g, bx, 24, bw, 36, 8); g.fill(); g.fillStyle = ink + '.85)'; g.textAlign = 'left'; lines.forEach((s, k) => g.fillText(s, bx + 8, 33 + k * 15)); }
+    g.fillStyle = 'rgba(20,21,24,.94)'; rr(g, bx, 24, bw, 36, 8); g.fill(); g.fillStyle = ink + '.85)'; g.textAlign = 'left'; lines.forEach((s, k) => g.fillText(s, bx + 8, 33 + k * 15)); }
 }
 
 // --------------------------------------------------------------- card ----
@@ -1995,12 +2074,12 @@ async function main() {
   const MESH = [{ arrayStride: 48, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x3' }, { shaderLocation: 1, offset: 12, format: 'float32x3' }, { shaderLocation: 2, offset: 24, format: 'float32x3' }, { shaderLocation: 3, offset: 36, format: 'float32x3' }] }];
   const GRID = [{ arrayStride: 20, attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x2' }, { shaderLocation: 1, offset: 8, format: 'float32x3' }] }];
   const HDR = 'rgba16float', MS = { count: 4 };
-  const premul = { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' } };
+  const premul = { color: { srcFactor: 'one', dstFactor: 'one-minus-src-alpha' }, alpha: { srcFactor: 'zero', dstFactor: 'one-minus-src-alpha' } };
   const pl = l => device.createPipelineLayout({ bindGroupLayouts: [l] });
   const depthW = { format: 'depth24plus', depthWriteEnabled: true, depthCompare: 'less' }, depthR = { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'less' };
-  const rp = (vs, fs, buffers, blend, depth, extra = {}) => device.createRenderPipeline({ layout: pl(layMain), vertex: { module: mod, entryPoint: vs, buffers }, fragment: { module: mod, entryPoint: fs, targets: [blend ? { format: HDR, blend } : { format: HDR }] }, primitive: { topology: 'triangle-list', cullMode: 'none' }, depthStencil: depth, multisample: MS, ...extra });
+  const rp = (vs, fs, buffers, blend, depth, gw = true) => device.createRenderPipeline({ layout: pl(layMain), vertex: { module: mod, entryPoint: vs, buffers }, fragment: { module: mod, entryPoint: fs, targets: [blend ? { format: HDR, blend } : { format: HDR }, { format: HDR, writeMask: gw ? GPUColorWrite.ALL : 0 }] }, primitive: { topology: 'triangle-list', cullMode: 'none' }, depthStencil: depth, multisample: MS });
   const pMesh = rp('vsMain', 'fsMain', MESH, null, depthW), pTerr = rp('vsTerrain', 'fsTerrain', GRID, null, depthW);
-  const pFlow = rp('vsFlow', 'fsFlow', GRID, premul, depthR), pPart = rp('vsPart', 'fsPart', [{ arrayStride: 48, stepMode: 'instance', attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x4' }, { shaderLocation: 1, offset: 16, format: 'float32x4' }, { shaderLocation: 2, offset: 32, format: 'float32x4' }] }], premul, depthR);
+  const pFlow = rp('vsFlow', 'fsFlow', GRID, premul, depthR, false), pPart = rp('vsPart', 'fsPart', [{ arrayStride: 48, stepMode: 'instance', attributes: [{ shaderLocation: 0, offset: 0, format: 'float32x4' }, { shaderLocation: 1, offset: 16, format: 'float32x4' }, { shaderLocation: 2, offset: 32, format: 'float32x4' }] }], premul, depthR, false);
   const sp = (vs, buffers) => device.createRenderPipeline({ layout: pl(layShadow), vertex: { module: mod, entryPoint: vs, buffers }, primitive: { topology: 'triangle-list', cullMode: 'none' }, depthStencil: { format: 'depth32float', depthWriteEnabled: true, depthCompare: 'less', depthBias: 2, depthBiasSlopeScale: 2.5 } });
   const pMeshS = sp('vsShadow', MESH), pTerrS = sp('vsTerrainShadow', GRID);
   const pBg = rp('vsBg', 'fsBg', [], null, { format: 'depth24plus', depthWriteEnabled: false, depthCompare: 'always' });
@@ -2009,15 +2088,16 @@ async function main() {
   const bgMain = device.createBindGroup({ layout: layMain, entries: [...be, { binding: 4, resource: shadowTex.createView() }, { binding: 5, resource: cmpSamp }] });
   const bgShadow = device.createBindGroup({ layout: layShadow, entries: be });
 
-  let msTex, depthTex, hdrTex, bgPost, W = 0, H = 0;
+  let msTex, depthTex, hdrTex, gMs, bgPost, W = 0, H = 0, DPR = 1;
   function resize() {
     const dpr = Math.min(devicePixelRatio || 1, 2), w = Math.max(1, Math.floor(cv.clientWidth * dpr)), h = Math.max(1, Math.floor(cv.clientHeight * dpr));
-    if (w === W && h === H) return; W = w; H = h; cv.width = w; cv.height = h;
-    [msTex, depthTex, hdrTex].forEach(t => t && t.destroy());
+    if (w === W && h === H) return; W = w; H = h; DPR = dpr; cv.width = w; cv.height = h;
+    [msTex, depthTex, hdrTex, gMs].forEach(t => t && t.destroy());
+    gMs = device.createTexture({ size: [w, h], format: HDR, sampleCount: 4, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
     msTex = device.createTexture({ size: [w, h], format: HDR, sampleCount: 4, usage: GPUTextureUsage.RENDER_ATTACHMENT });
     depthTex = device.createTexture({ size: [w, h], format: 'depth24plus', sampleCount: 4, usage: GPUTextureUsage.RENDER_ATTACHMENT });
     hdrTex = device.createTexture({ size: [w, h], format: HDR, usage: GPUTextureUsage.RENDER_ATTACHMENT | GPUTextureUsage.TEXTURE_BINDING });
-    bgPost = device.createBindGroup({ layout: pPost.getBindGroupLayout(0), entries: [{ binding: 0, resource: hdrTex.createView() }, { binding: 1, resource: linSamp }, { binding: 2, resource: { buffer: postU } }] });
+    bgPost = device.createBindGroup({ layout: pPost.getBindGroupLayout(0), entries: [{ binding: 0, resource: hdrTex.createView() }, { binding: 1, resource: linSamp }, { binding: 2, resource: { buffer: postU } }, { binding: 3, resource: gMs.createView() }] });
   }
   setupInput(cv);
   let last = performance.now(), uiT = 0;
@@ -2033,13 +2113,14 @@ async function main() {
     packCells();
     device.queue.writeBuffer(uBuf, 0, uData); device.queue.writeBuffer(gBuf, 0, groupData, 0, gN * 20);
     device.queue.writeBuffer(cABuf, 0, cellA); device.queue.writeBuffer(cBBuf, 0, cellB); device.queue.writeBuffer(cCBuf, 0, cellC);
-    device.queue.writeBuffer(pBuf, 0, pdata, 0, pn * 12); device.queue.writeBuffer(postU, 0, new Float32Array([anim.t, vis.flash, vis.dim, 0]));
+    device.queue.writeBuffer(pBuf, 0, pdata, 0, pn * 12); device.queue.writeBuffer(postU, 0, new Float32Array([anim.t, vis.flash, vis.dim, DPR]));
     const enc = device.createCommandEncoder();
     const s = enc.beginRenderPass({ colorAttachments: [], depthStencilAttachment: { view: shadowTex.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'store' } });
     s.setBindGroup(0, bgShadow); s.setPipeline(pMeshS); s.setVertexBuffer(0, meshVB); s.draw(scene.opaque.length / 12);
     s.setPipeline(pTerrS); s.setVertexBuffer(0, gridVB); s.setIndexBuffer(gridIB, 'uint32'); s.drawIndexed(scene.grid.idx.length); s.end();
-    const bg = 0.5;
-    const r = enc.beginRenderPass({ colorAttachments: [{ view: msTex.createView(), resolveTarget: hdrTex.createView(), clearValue: { r: bg, g: bg, b: bg * 1.03, a: 1 }, loadOp: 'clear', storeOp: 'discard' }],
+    const bg = 0.01;
+    const r = enc.beginRenderPass({ colorAttachments: [{ view: msTex.createView(), resolveTarget: hdrTex.createView(), clearValue: { r: bg, g: bg, b: bg * 1.03, a: 1 }, loadOp: 'clear', storeOp: 'discard' },
+      { view: gMs.createView(), clearValue: { r: 0, g: 0, b: 0, a: 1000 }, loadOp: 'clear', storeOp: 'store' }],
       depthStencilAttachment: { view: depthTex.createView(), depthClearValue: 1, depthLoadOp: 'clear', depthStoreOp: 'discard' } });
     r.setBindGroup(0, bgMain);
     r.setPipeline(pBg); r.draw(3);

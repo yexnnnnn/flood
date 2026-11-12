@@ -1,319 +1,315 @@
 #!/usr/bin/env python3
-"""沈家庵村 · 山洪泥石流自然征兆卡 (A5, two sides) -> card/index.html
+"""沈家庵村 · 《水记得路》 山洪泥石流征兆卡 v0.2  ->  card/index.html
 
-Style: diffuse gradients (弥散) for "how dangerous", precise hairlines + monospace labels for everything
-that must be exact. The back-side map is drawn from the real data in ../shenjia_embed.js
-(Copernicus DEM contours, OSM roads, DEM-derived gullies, houses detected in satellite images).
+Idea: elders say water always takes the same paths. GIS can show those paths: HAND (Height Above Nearest
+Drainage, computed from the DEM's flow directions) is a standard flood-mapping index. Wherever HAND is small,
+water and debris can reach. That field is drawn as light on a black map (additive, pure colours).
+Back side: four steps as small multiples of the 杜龙沟 catchment; the light moves sky -> slopes -> creek -> village.
+
+Data: ../shenjia_embed.js (Copernicus GLO-30 DEM, OSM roads, DEM gullies, houses from satellite screenshots)
+      + EAST_BANK below: buildings east of the 拒马河 digitised by eye from the same satellite mosaic.
 """
-import json, math, heapq, html, os, base64, struct
+import json, math, heapq, html, os, base64, struct, zlib
 
 HERE = os.path.dirname(os.path.abspath(__file__))
 src = open(os.path.join(HERE, '..', 'shenjia_embed.js'), encoding='utf-8').read()
 G = json.loads(src[src.index('{'):src.rindex('}') + 1])
+N, HALF = G['N'], G['half']; CELL = 2 * HALF / N
+ELEV = [v / 10 for v in struct.unpack(f'<{N * N}H', base64.b64decode(G['elev']))]
+ACC = struct.unpack(f'<{N * N}H', base64.b64decode(G['acc']))
+DOWN = base64.b64decode(G['down'])
+GID = base64.b64decode(G['gid'])
+N8 = [(-1, -1), (-1, 0), (-1, 1), (0, -1), (0, 1), (1, -1), (1, 0), (1, 1)]   # (dj, di)
+cx = lambda i: -HALF + (i + .5) * CELL
+cell = lambda x, z: (min(N - 1, max(0, int((z + HALF) / CELL))) * N + min(N - 1, max(0, int((x + HALF) / CELL))))
 
-W, H = 1480, 2100            # 0.1 mm units: A5 148 x 210 mm
-INK = '#141414'
-PAPER = '#f4f2ee'
+# ------------------------------------------------------------ east bank houses (digitised)
+# mosaic pixel centres (x, y, w, h, angle deg) read off full-resolution crops; 1 px = 0.4504 m
+GR = json.load(open(os.path.join(HERE, '..', '_analysis', 'georef.json')))
+A0, B0 = (2127, 520), (2527, 1200)
+EAST_PX = [(A0, p) for p in [(135, 42, 40, 40, 0), (108, 162, 50, 20, -30), (150, 148, 20, 15, 0), (300, 50, 30, 25, 0), (345, 45, 25, 20, 0), (330, 95, 50, 25, 0),
+                             (335, 135, 20, 20, 0), (112, 260, 45, 35, 0), (148, 250, 30, 30, 0), (200, 262, 25, 40, 0), (258, 240, 35, 30, 0), (172, 295, 25, 35, 0),
+                             (258, 312, 40, 25, 0), (255, 345, 45, 25, 0), (155, 380, 70, 30, 0), (180, 455, 85, 35, -25), (460, 445, 45, 30, 0), (310, 555, 55, 30, 0),
+                             (230, 590, 25, 70, -30), (175, 520, 20, 20, 0), (300, 690, 25, 60, -30), (360, 740, 90, 60, -30), (320, 780, 45, 70, -30), (510, 790, 40, 35, 0),
+                             (425, 830, 55, 45, -30), (460, 880, 70, 45, -30), (520, 860, 45, 45, 0), (600, 600, 30, 30, 0), (620, 645, 45, 30, 0), (705, 605, 40, 30, 0),
+                             (745, 655, 45, 35, 0), (720, 695, 45, 30, -20), (590, 700, 40, 30, 0), (700, 740, 30, 25, 0), (575, 495, 60, 25, -15), (395, 600, 30, 25, 0),
+                             (470, 660, 20, 20, 0), (620, 820, 40, 30, 0)]] + \
+          [(B0, p) for p in [(150, 330, 90, 40, -25), (195, 315, 40, 30, -25), (225, 425, 70, 50, -25), (290, 430, 40, 35, -25), (185, 490, 50, 40, -25),
+                             (280, 520, 50, 40, -25), (270, 610, 100, 55, -25), (295, 745, 70, 55, -25), (430, 75, 35, 25, 0), (230, 165, 25, 20, 0),
+                             (900, 775, 30, 30, 0), (615, 1275, 55, 35, 0), (665, 1270, 30, 60, -30), (615, 1305, 30, 25, 0)]]
+def px2m(o, p):
+    X, Y = o[0] + p[0], o[1] + p[1]
+    lon = GR['lonO'] + X * GR['mpp'] / GR['KX']; lat = GR['latO'] - Y * GR['mpp'] / GR['KY']
+    return (lon - G['center'][0]) * GR['KX'], -(lat - G['center'][1]) * GR['KY']
+HOUSES = [dict(x=h[0], z=h[1], w=math.sqrt(max(h[2], 30)) * 1.25, d=math.sqrt(max(h[2], 30)) / 1.25, a=-math.degrees(h[3]), east=False) for h in G['houses']]
+n_east_new = 0
+for o, p in EAST_PX:
+    x, z = px2m(o, p)
+    if any(abs(h['x'] - x) < 9 and abs(h['z'] - z) < 9 for h in HOUSES): continue
+    HOUSES.append(dict(x=x, z=z, w=p[2] * GR['mpp'], d=p[3] * GR['mpp'], a=p[4], east=True)); n_east_new += 1
+
+# ------------------------------------------------------------ HAND (height above nearest drainage)
+RIV = G['river']
+def segd(x, z, pts):
+    best = 1e9
+    for a, b in zip(pts, pts[1:]):
+        dx, dz = b[0] - a[0], b[1] - a[1]; L = dx * dx + dz * dz or 1; t = max(0, min(1, ((x - a[0]) * dx + (z - a[1]) * dz) / L))
+        best = min(best, math.hypot(x - a[0] - dx * t, z - a[1] - dz * t))
+    return best
+RD = [segd(cx(k % N), cx(k // N), RIV) for k in range(N * N)]
+CH_RIVER = [RD[k] < 45 for k in range(N * N)]
+GPTS = [g['path'] + g.get('run', []) for g in G['gullies']]
+CH_GULLY = [False] * (N * N)
+for pts in GPTS:
+    for k in range(N * N):
+        if not CH_GULLY[k] and segd(cx(k % N), cx(k // N), pts) < 16: CH_GULLY[k] = True
+CH = [CH_RIVER[k] or CH_GULLY[k] for k in range(N * N)]
+def down(k):
+    d = DOWN[k]
+    if d == 255: return -1
+    dj, di = N8[d]; i, j = k % N + di, k // N + dj
+    return j * N + i if 0 <= i < N and 0 <= j < N else -1
+HAND = [99.0] * (N * N); KIND = [0] * (N * N)    # KIND: 1 = drains to the Juma, 2 = to a gully
+for k in range(N * N):
+    q, n = k, 0
+    while q >= 0 and not CH[q] and n < 400: q = down(q); n += 1
+    if q >= 0 and CH[q]:
+        HAND[k] = max(0.0, ELEV[k] - ELEV[q]); KIND[k] = 1 if CH_RIVER[q] else 2
+def hand_at(x, z): return HAND[cell(x, z)], KIND[cell(x, z)]
+for h in HOUSES: h['hand'], h['kind'] = hand_at(h['x'], h['z']); h['drun'] = segd(h['x'], h['z'], G['gullies'][0].get('run', []) or [(1e6, 1e6), (1e6, 1e6)])
+LOW = 5.0
+n_low = sum(1 for h in HOUSES if h['hand'] < LOW)
+n_low_r = sum(1 for h in HOUSES if h['hand'] < LOW and h['kind'] == 1); n_low_g = n_low - n_low_r
+
+# ------------------------------------------------------------ raster helpers
+def png(w, h, rows):   # rows: list of bytearrays RGBA
+    raw = b''.join(b'\x00' + bytes(r) for r in rows)
+    ch = lambda t, d: struct.pack('>I', len(d)) + t + d + struct.pack('>I', zlib.crc32(t + d) & 0xffffffff)
+    return 'data:image/png;base64,' + base64.b64encode(b'\x89PNG\r\n\x1a\n' + ch(b'IHDR', struct.pack('>IIBBBBB', w, h, 8, 6, 0, 0, 0)) + ch(b'IDAT', zlib.compress(raw, 9)) + ch(b'IEND', b'')).decode()
+def bil(F, x, z):
+    gx, gz = (x + HALF) / CELL - .5, (z + HALF) / CELL - .5; i, j = int(math.floor(gx)), int(math.floor(gz)); u, v = gx - i, gz - j
+    f = lambda a, b: F[min(N - 1, max(0, b)) * N + min(N - 1, max(0, a))]
+    return (f(i, j) * (1 - u) + f(i + 1, j) * u) * (1 - v) + (f(i, j + 1) * (1 - u) + f(i + 1, j + 1) * u) * v
+def raster(ext, w, h, fn):
+    x0, x1, z0, z1 = ext; rows = []
+    for py in range(h):
+        z = z0 + (py + .5) / h * (z1 - z0); r = bytearray()
+        for px_ in range(w):
+            x = x0 + (px_ + .5) / w * (x1 - x0); c = fn(x, z); r += bytes(max(0, min(255, int(v))) for v in c)
+        rows.append(r)
+    return png(w, h, rows)
+def hillshade(x, z):
+    e = 12; dzdx = (bil(ELEV, x + e, z) - bil(ELEV, x - e, z)) / (2 * e); dzdz = (bil(ELEV, x, z + e) - bil(ELEV, x, z - e)) / (2 * e)
+    nx, ny, nz = -dzdx * 1.6, 1, -dzdz * 1.6; l = math.sqrt(nx * nx + ny * ny + nz * nz)
+    s = max(0, (-0.55 * nx + 0.75 * ny - 0.38 * nz) / l)
+    v = 255 * (s ** 2.2) * 0.5
+    return (v * .86, v * .92, v, 255 * min(1, .25 + s))
+
+# light per field: (r, g, b, alpha) on black, combined additively ("screen")
+BLUE, CYAN, MAG, ORANGE, LIME, WHITE = (40, 90, 255), (0, 229, 255), (255, 31, 180), (255, 90, 20), (200, 255, 0), (255, 255, 255)
+def mixc(a, b, t): return tuple(a[i] + (b[i] - a[i]) * t for i in range(3))
+def hand_light(x, z):
+    k = cell(x, z); hd = bil(HAND, x, z); kind = KIND[k]
+    if hd > 10 or kind == 0: return (0, 0, 0, 0)
+    t = max(0.0, 1 - hd / 10) ** 1.8
+    c = mixc(BLUE, CYAN, t ** 2) if kind == 1 else mixc(ORANGE, MAG, 1 - t)
+    if kind == 2: t *= min(1, 0.45 + math.log10(1 + ACC[k]) / 3.2)
+    return (*c, 255 * t)
+
+# ------------------------------------------------------------ svg helpers
+INK, BG = '#f5f5f2', '#050506'
 SANS = '"PingFang SC","Noto Sans SC","Source Han Sans SC","Helvetica Neue",Arial,sans-serif'
-MONO = '"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,"PingFang SC",monospace'
+MONO = '"JetBrains Mono","SF Mono",ui-monospace,Menlo,Consolas,monospace'
 esc = html.escape
-
-# --------------------------------------------------------------- content
-# t: tag shown in the source pill. "新编" = phrase written for this project (the phenomenon is documented,
-# the rhyme is not a verified traditional saying). Rain numbers are illustrative, to be calibrated per gully.
-LEVELS = [
-    dict(n='留意', en='WATCH', act='抬头看天，收好院里的东西',
-         day=[('有雨山戴帽', '山顶罩住云，说明山里水汽重', '中国天气网'),
-              ('天上钩钩云', '钩卷云常出现在降雨系统前方', '中国天气网'),
-              ('清早宝塔云', '中层空气不稳，午后易起雷雨', '中科院科普')],
-         night=[('远处闷雷，忽东忽西', '附近山里有强对流', '水利部资料'),
-                ('雨声一直不停', '记下开始下雨的时间', '新编')]),
-    dict(n='准备', en='PREPARE', act='证件、药、手电装好；老人孩子先走',
-         day=[('天上灰布悬，雨丝定连绵', '厚厚的雨层云，雨会下很久', '中国天气网'),
-              ('雨大看不清对面山', '一小时的雨已经很大', '新编'),
-              ('雨量桶 ≥ 10 cm，或 1 小时涨 3 cm', '直筒桶放空地，水深就是雨量', '示意值')],
-         night=[('闷雷越来越近', '雷雨正向村子移动', '水利部资料'),
-                ('雨量桶 1 小时涨 3 cm', '每小时打手电看一次', '示意值')]),
-    dict(n='转移', en='MOVE', act='按路线去安置点，不用等通知',
-         day=[('清水忽变黄，山洪在上方', '上游已经在冲泥沙', '应急管理局 · 新编'),
-              ('溪水突然涨，树枝顺水淌', '上游的洪水下来了', '国家应急广播 · 新编'),
-              ('雨量桶 ≥ 20 cm，或 1 小时涨 4 cm', '接近本地泥石流的暴发雨量', '示意值')],
-         night=[('溪水声变大、变闷', '水里夹了泥沙和石头', '国家应急广播 · 新编'),
-                ('停电断网也要走', '23·7 时很多村子先断了信号', '新编')]),
-    dict(n='快跑', en='RUN', act='往沟两侧的高处跑，别顺着沟跑，别回去拿东西',
-         day=[('溪水突然断，山沟莫久看', '上游可能被堵住，随时会冲下来', '国家应急广播 · 新编'),
-              ('山谷轰隆响，石头撞石头', '泥石流正在下来', '国家应急广播 · 新编'),
-              ('山坡裂缝增，落石声不断', '坡体正在变形', '应急管理局 · 新编')],
-         night=[('水声突然没了', '断流，比涨水更危险', '国家应急广播 · 新编'),
-                ('沟里轰隆、地在抖', '不要出门去看，直接往高处跑', '应急管理局 · 新编')]),
-]
-
-# thermal palettes per level: list of (radius factor, colour, opacity) from outside to core
-AURA = [
-    [(1.0, '#c9d3ff', .55), (.62, '#e3e8ff', .9), (.3, '#f5f3ff', .9)],
-    [(1.0, '#ffd6b8', .7), (.7, '#ffe9a8', .8), (.35, '#fff8dc', .9)],
-    [(1.0, '#ff9a5c', .75), (.72, '#7fb2ff', .85), (.45, '#ffc7e4', .9), (.22, '#fff27a', 1)],
-    [(1.0, '#ff6a3d', .85), (.78, '#ff4fb4', .7), (.58, '#5f9bff', .95), (.36, '#bfe9ff', .9), (.18, '#fff36a', 1)],
-]
-
-def aura(cx, cy, r, lv, fid):
-    out = [f'<g filter="url(#{fid})">']
-    for f, c, o in AURA[lv]:
-        out.append(f'<circle cx="{cx:.1f}" cy="{cy:.1f}" r="{r * f:.1f}" fill="{c}" fill-opacity="{o}"/>')
-    if lv == 3:   # satellite blobs, like a specimen that is spreading
-        for a, d, rr in [(0.6, 1.12, .26), (2.2, 1.05, .2), (3.9, 1.18, .22), (5.2, 1.0, .17)]:
-            x, y = cx + math.cos(a) * r * d, cy + math.sin(a) * r * d
-            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * rr:.1f}" fill="#ff7a45" fill-opacity=".8"/>')
-            out.append(f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r * rr * .5:.1f}" fill="#7fb2ff" fill-opacity=".9"/>')
-    out.append('</g>')
-    return ''.join(out)
-
 def text(x, y, s, size, weight=400, fill=INK, family=SANS, anchor='start', ls=0, op=1):
     return (f'<text x="{x:.1f}" y="{y:.1f}" font-family=\'{family}\' font-size="{size}" font-weight="{weight}" fill="{fill}" '
             f'fill-opacity="{op}" text-anchor="{anchor}" letter-spacing="{ls}">{esc(s)}</text>')
+DEFS = ('<defs><filter id="g1" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="14"/></filter>'
+        '<filter id="g2" x="-20%" y="-20%" width="140%" height="140%"><feGaussianBlur stdDeviation="4"/></filter>'
+        '<filter id="g3" x="-50%" y="-50%" width="200%" height="200%"><feGaussianBlur stdDeviation="22"/></filter></defs>')
 
-def tag(x, y, s, size=17, fill='#e7f5c4'):   # highlighted monospace label (specimen-label look)
-    w = len(s) * size * 0.62 + 18
-    for ch in s:
-        if ord(ch) > 0x2e80: w += size * 0.38
-    return f'<rect x="{x:.1f}" y="{y - size - 6:.1f}" width="{w:.1f}" height="{size + 14:.1f}" fill="{fill}"/>' + text(x + 9, y, s, size, family=MONO, ls=1)
+class Map:
+    def __init__(s, ext, box): s.ext, s.box = ext, box
+    def P(s, x, z):
+        x0, x1, z0, z1 = s.ext; X, Y, W, H = s.box
+        return X + (x - x0) / (x1 - x0) * W, Y + (z - z0) / (z1 - z0) * H
+    def d(s, pts): return 'M' + ' L'.join('%.1f %.1f' % s.P(*p) for p in pts)
+    def img(s, uri, extra=''):
+        X, Y, W, H = s.box
+        return f'<image href="{uri}" x="{X}" y="{Y}" width="{W}" height="{H}" preserveAspectRatio="none" {extra}/>'
+    def contours(s, step, op_minor, op_major, major=100):
+        x0, x1, z0, z1 = s.ext; out = []
+        lo, hi = min(ELEV), max(ELEV)
+        for lv in range(int(lo // step + 1) * step, int(hi), step):
+            segs = []
+            for j in range(N - 1):
+                zz = cx(j)
+                if zz < z0 - CELL or zz > z1: continue
+                for i in range(N - 1):
+                    xx = cx(i)
+                    if xx < x0 - CELL or xx > x1: continue
+                    v = [ELEV[j * N + i], ELEV[j * N + i + 1], ELEV[(j + 1) * N + i + 1], ELEV[(j + 1) * N + i]]
+                    c = [(cx(i), cx(j)), (cx(i + 1), cx(j)), (cx(i + 1), cx(j + 1)), (cx(i), cx(j + 1))]; pts = []
+                    for a in range(4):
+                        b = (a + 1) % 4
+                        if (v[a] < lv) != (v[b] < lv): t = (lv - v[a]) / (v[b] - v[a]); pts.append((c[a][0] + (c[b][0] - c[a][0]) * t, c[a][1] + (c[b][1] - c[a][1]) * t))
+                    for q in range(0, len(pts) - 1, 2):
+                        a0, b0 = s.P(*pts[q]); a1, b1 = s.P(*pts[q + 1]); segs.append(f'M{a0:.1f} {b0:.1f}L{a1:.1f} {b1:.1f}')
+            if segs:
+                mj = lv % major == 0
+                out.append(f'<path d="{"".join(segs)}" fill="none" stroke="#ffffff" stroke-width="{1.0 if mj else .6}" stroke-opacity="{op_major if mj else op_minor}"/>')
+        return ''.join(out)
+    def houses(s, scale, colour=None):
+        out = {}
+        for h in s.houses_in():
+            X, Y = s.P(h['x'], h['z']); w, d = max(3.2, h['w'] * scale), max(2.4, h['d'] * scale)
+            c = colour(h) if colour else '#ffffff'
+            out.setdefault(c, []).append(f'<rect x="{X - w / 2:.1f}" y="{Y - d / 2:.1f}" width="{w:.1f}" height="{d:.1f}" transform="rotate({h["a"]:.0f} {X:.1f} {Y:.1f})"/>')
+        return ''.join(f'<g fill="{c}">{"".join(v)}</g>' for c, v in out.items())
+    def houses_in(s):
+        x0, x1, z0, z1 = s.ext
+        return [h for h in HOUSES if x0 < h['x'] < x1 and z0 < h['z'] < z1]
+    def clip(s, cid):
+        X, Y, W, H = s.box
+        return f'<clipPath id="{cid}"><rect x="{X}" y="{Y}" width="{W}" height="{H}"/></clipPath>'
 
-def pill(x, y, s, size=16, anchor='end'):   # hairline source pill
-    w = sum(size * (1.0 if ord(c) > 0x2e80 else .62) for c in s) + 18
-    x0 = x - w if anchor == 'end' else x
-    return (f'<rect x="{x0:.1f}" y="{y - size - 4:.1f}" width="{w:.1f}" height="{size + 11:.1f}" rx="{(size + 11) / 2:.1f}" fill="none" stroke="{INK}" stroke-width="1.2" stroke-opacity=".55"/>'
-            + text(x0 + 9, y, s, size, family=MONO, op=.7))
-
-def defs():
-    return ('<defs>'
-            '<filter id="b1" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="16"/></filter>'
-            '<filter id="b2" x="-60%" y="-60%" width="220%" height="220%"><feGaussianBlur stdDeviation="10"/></filter>'
-            '<filter id="bm" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="9"/></filter>'
-            '<filter id="bw" x="-10%" y="-10%" width="120%" height="120%"><feGaussianBlur stdDeviation="16"/></filter>'
-            '<linearGradient id="rain" x1="0" x2="1"><stop offset="0" stop-color="#e3e8ff"/><stop offset=".3" stop-color="#ffe9a8"/>'
-            '<stop offset=".62" stop-color="#ff9a5c"/><stop offset=".8" stop-color="#ff4fb4"/><stop offset="1" stop-color="#5f9bff"/></linearGradient>'
-            '<marker id="arr" viewBox="0 0 10 10" refX="7" refY="5" markerWidth="7" markerHeight="7" orient="auto-start-reverse"><path d="M0 0L10 5L0 10z" fill="#141414"/></marker>'
-            '</defs>')
-
-def header(side_tag, right, title, sub):
-    s = [tag(70, 104, side_tag, 19), tag(70, 140, '4 LEVELS / NOT OFFICIAL', 19, '#f1ece2')]
-    s.append(text(1410, 104, right, 19, family=MONO, anchor='end', ls=1.5))
-    s.append(text(1410, 136, 'PROJ :: 沈家庵 · 拒马河 · 39.595N 115.679E', 16, family=MONO, anchor='end', ls=1, op=.6))
-    s.append(text(66, 300, title, 118, 700, ls=-3))
-    s.append(text(70, 362, sub, 30, op=.62))
-    return ''.join(s)
-
-def footer(left):
-    return (f'<line x1="70" y1="2010" x2="1410" y2="2010" stroke="{INK}" stroke-width="1.2" stroke-opacity=".35"/>'
-            + text(70, 2050, left, 16, family=MONO, ls=.8, op=.75)
-            + text(1410, 2050, 'Ø 148 × 210 mm · 2026 · v0.1', 16, family=MONO, anchor='end', ls=.8, op=.75))
-
-# --------------------------------------------------------------- front (day)
-def front():
-    s = [defs(), f'<rect width="{W}" height="{H}" fill="{PAPER}"/>',
-         header('CARD 01 · 白天 / DAY', '看天 → 看水 → 看山', '看天 看水 看山', '老人说的天象和水情，对应四步行动。看到哪一级，就做哪一级的事。')]
-    y0, rh = 410, 322
-    for i, L in enumerate(LEVELS):
-        y = y0 + i * rh
-        cx, cy, r = 215, y + 160, 88 + i * 14
-        s.append(aura(cx, cy, r, i, 'b1'))
-        s.append(text(cx, cy + 22, L['n'], 66, 700, anchor='middle', ls=2))
-        s.append(text(cx, cy + 62, f'LV.{i + 1} / {L["en"]}', 16, family=MONO, anchor='middle', ls=2, op=.7))
-        if i: s.append(f'<line x1="70" y1="{y:.0f}" x2="1410" y2="{y:.0f}" stroke="{INK}" stroke-width="1" stroke-opacity=".18"/>')
-        s.append(text(420, y + 64, L['act'], 38, 700, ls=-.5))
-        for k, (q, ex, src_) in enumerate(L['day']):
-            yy = y + 132 + k * 70
-            s.append(f'<circle cx="430" cy="{yy - 10}" r="5" fill="none" stroke="{INK}" stroke-width="1.5"/>')
-            s.append(text(452, yy, q, 28, 600))
-            s.append(text(452, yy + 30, ex, 20, op=.6))
-            s.append(pill(1410, yy, src_))
-    # rain bucket gauge
-    gy = 1830; x0, x1 = 70, 1410; pxcm = (x1 - x0) / 30
-    s.append(text(70, gy - 52, '雨量桶', 30, 700))
-    s.append(text(186, gy - 52, '直筒桶放在空地上，桶里水深就是雨量：1 cm = 10 mm', 22, op=.62))
-    s.append(f'<rect x="{x0}" y="{gy - 6}" width="{x1 - x0}" height="44" fill="url(#rain)" filter="url(#b2)" opacity=".9"/>')
-    s.append(f'<rect x="{x0}" y="{gy - 6}" width="{x1 - x0}" height="44" fill="none" stroke="{INK}" stroke-width="1.2"/>')
-    for c in range(31):
-        h = 16 if c % 5 == 0 else 8
-        s.append(f'<line x1="{x0 + c * pxcm:.1f}" y1="{gy + 38}" x2="{x0 + c * pxcm:.1f}" y2="{gy + 38 + h}" stroke="{INK}" stroke-width="1.2"/>')
-        if c % 5 == 0: s.append(text(x0 + c * pxcm, gy + 80, f'{c} cm', 16, family=MONO, anchor='middle', op=.7))
-    for c, lab in [(10, '准备'), (20, '转移'), (25, '本地泥石流暴发雨量（示意）')]:
-        x = x0 + c * pxcm
-        s.append(f'<line x1="{x:.1f}" y1="{gy - 22}" x2="{x:.1f}" y2="{gy + 38}" stroke="{INK}" stroke-width="2"/>')
-        s.append(tag(x + 8, gy - 12, lab, 16, '#ffffff'))
-    s.append(text(70, gy + 128, '还要看快慢：1 小时涨 3 cm → 准备；涨 4 cm → 转移。示意值，需按本沟标定。', 20, op=.7))
-    s.append(footer('非官方预警 · 以政府发布为准 · 看到“快跑”信号，不要等任何通知'))
-    return f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">{"".join(s)}</svg>'
-
-# --------------------------------------------------------------- map data
-N, HALF = G['N'], G['half']; CELL = 2 * HALF / N
-elev = struct.unpack(f'<{N * N}H', base64.b64decode(G['elev']))
-MX0, MX1, MZ0, MZ1 = -1200, 1200, -720, 713      # map extent (m): x east, z south
-MAP = (70, 1165, 1340, 800)                         # x, y, w, h on the card
-def P(x, z):
-    return MAP[0] + (x - MX0) / (MX1 - MX0) * MAP[2], MAP[1] + (z - MZ0) / (MZ1 - MZ0) * MAP[3]
-def path_d(pts):
-    q = [P(*p) for p in pts]
-    return 'M' + ' L'.join(f'{x:.1f} {y:.1f}' for x, y in q)
-
-def contours(step=20):
-    out = []
-    E = lambda i, j: elev[j * N + i] / 10
-    cx = lambda i: -HALF + (i + .5) * CELL
-    lo, hi = min(elev) / 10, max(elev) / 10
-    for lv in range(int(lo // step + 1) * step, int(hi), step):
-        segs = []
-        for j in range(N - 1):
-            for i in range(N - 1):
-                v = [E(i, j), E(i + 1, j), E(i + 1, j + 1), E(i, j + 1)]
-                c = [(cx(i), cx(j)), (cx(i + 1), cx(j)), (cx(i + 1), cx(j + 1)), (cx(i), cx(j + 1))]
-                pts = []
-                for a in range(4):
-                    b = (a + 1) % 4
-                    if (v[a] < lv) != (v[b] < lv):
-                        t = (lv - v[a]) / (v[b] - v[a])
-                        pts.append((c[a][0] + (c[b][0] - c[a][0]) * t, c[a][1] + (c[b][1] - c[a][1]) * t))
-                for k in range(0, len(pts) - 1, 2):
-                    (x0, z0), (x1, z1) = pts[k], pts[k + 1]
-                    if MX0 <= x0 <= MX1 and MZ0 <= z0 <= MZ1:
-                        a0, b0 = P(x0, z0); a1, b1 = P(x1, z1)
-                        segs.append(f'M{a0:.1f} {b0:.1f}L{a1:.1f} {b1:.1f}')
-        if segs:
-            major = lv % 100 == 0
-            out.append(f'<path d="{"".join(segs)}" fill="none" stroke="{INK}" stroke-width="{1.1 if major else .7}" stroke-opacity="{.32 if major else .14}"/>')
-    return ''.join(out)
-
-# road graph for the evacuation routes
-def routes(start, goals):
+# road graph route (for the shelter lines)
+def route(start, goal):
     nodes, adj = [], {}
     def nid(p):
         for k, q in enumerate(nodes):
             if abs(q[0] - p[0]) < 4 and abs(q[1] - p[1]) < 4: return k
         nodes.append(p); return len(nodes) - 1
     for r in G['roads']:
-        pts = r['p']; prev = None
-        for p in pts:
+        prev = None
+        for p in r['p']:
             k = nid(tuple(p))
             if prev is not None and prev != k:
-                d = math.dist(nodes[prev], nodes[k]) * (1.3 if r['k'] == 'path' else 1)
-                adj.setdefault(prev, []).append((k, d)); adj.setdefault(k, []).append((prev, d))
+                dd = math.dist(nodes[prev], nodes[k]); adj.setdefault(prev, []).append((k, dd)); adj.setdefault(k, []).append((prev, dd))
             prev = k
-    near = lambda p: min(range(len(nodes)), key=lambda k: math.dist(nodes[k], p))
-    s0 = near(start); dist = {s0: 0}; prev = {}; pq = [(0, s0)]
+    s0 = min(range(len(nodes)), key=lambda k: math.dist(nodes[k], start)); dist = {s0: 0}; prv = {}; pq = [(0, s0)]
     while pq:
-        d, u = heapq.heappop(pq)
-        if d > dist.get(u, 1e18): continue
+        dd, u = heapq.heappop(pq)
+        if dd > dist[u]: continue
         for v, w in adj.get(u, []):
-            if d + w < dist.get(v, 1e18): dist[v] = d + w; prev[v] = u; heapq.heappush(pq, (d + w, v))
-    out = []
-    for g in goals:
-        t = min(dist, key=lambda k: math.dist(nodes[k], g) + dist[k] * 0.15)
-        p = [g]; k = t
-        while k in prev or k == s0:
-            p.append(nodes[k])
-            if k == s0: break
-            k = prev[k]
-        p.append(start); p.reverse(); out.append((p, dist[t] + math.dist(nodes[t], g)))
-    return out
+            if dd + w < dist.get(v, 1e18): dist[v] = dd + w; prv[v] = u; heapq.heappush(pq, (dd + w, v))
+    t = min(dist, key=lambda k: math.dist(nodes[k], goal) * 3 + dist[k] * .2); p = [goal]
+    while True:
+        p.append(nodes[t])
+        if t == s0: break
+        t = prv[t]
+    return p[::-1]
 
-def mapsvg():
-    s = [f'<clipPath id="mc"><rect x="{MAP[0]}" y="{MAP[1]}" width="{MAP[2]}" height="{MAP[3]}"/></clipPath>', '<g clip-path="url(#mc)">']
-    s.append(contours())
-    # danger: diffuse fields along the Juma and every gully (low ground where water and debris go)
-    s.append(f'<g filter="url(#bw)" opacity=".75"><path d="{path_d(G["river"])}" fill="none" stroke="#7fb2ff" stroke-width="95" stroke-linecap="round"/>'
-             f'<path d="{path_d(G["river"])}" fill="none" stroke="#c9d3ff" stroke-width="150" stroke-opacity=".6" stroke-linecap="round"/></g>')
-    for gi, g in enumerate(G['gullies']):
-        pts = g['path'] + g.get('run', [])
-        s.append(f'<g filter="url(#bm)"><path d="{path_d(pts)}" fill="none" stroke="#ff9a5c" stroke-width="{46 if gi == 0 else 34}" stroke-opacity=".75" stroke-linecap="round"/>'
-                 f'<path d="{path_d(pts)}" fill="none" stroke="#ff4fb4" stroke-width="{16 if gi == 0 else 12}" stroke-opacity=".75" stroke-linecap="round"/></g>')
-        ox, oz = g['outlet']
-        X, Y = P(ox, oz)
-        s.append(f'<g filter="url(#b2)"><circle cx="{X:.1f}" cy="{Y:.1f}" r="{30 if gi == 0 else 20}" fill="#fff36a"/></g>')
-    s.append(f'<path d="{path_d(G["river"])}" fill="none" stroke="{INK}" stroke-width="1.4" stroke-dasharray="2 5" stroke-opacity=".7"/>')
-    for g in G['gullies']:
-        s.append(f'<path d="{path_d(g["path"] + g.get("run", []))}" fill="none" stroke="{INK}" stroke-width="1" stroke-opacity=".55"/>')
-    # roads
-    RW = {'main': 2.4, 'lane': 1.4, 'track': 1.0, 'path': .7}
-    for r in G['roads']:
-        dash = ' stroke-dasharray="4 4"' if r['k'] == 'path' else ''
-        s.append(f'<path d="{path_d(r["p"])}" fill="none" stroke="{INK}" stroke-width="{RW.get(r["k"], 1)}" stroke-opacity=".8"{dash}/>')
-    # houses
-    hs = []
-    for h in G['houses']:
-        x, y = P(h[0], h[1])
-        hs.append(f'M{x - 2.2:.1f} {y - 2.2:.1f}h4.4v4.4h-4.4z')
-    s.append(f'<path d="{"".join(hs)}" fill="{PAPER}" stroke="{INK}" stroke-width=".9"/>')
-    # routes from the village centre to the two shelters (illustrative)
-    home = (-60, -60)
-    shelters = [((-682, -262), '安置点 A · 西坡台地'), ((-232, 698), '安置点 B · 南坡台地')]
-    for (pts, L), (g, lab) in zip(routes(home, [g for g, _ in shelters]), shelters):
-        s.append(f'<path d="{path_d(pts)}" fill="none" stroke="#ffffff" stroke-width="9" stroke-linejoin="round" stroke-opacity=".9"/>')
-        s.append(f'<path d="{path_d(pts)}" fill="none" stroke="{INK}" stroke-width="3.6" stroke-linejoin="round" marker-end="url(#arr)"/>')
-        X, Y = P(*g)
-        s.append(f'<g filter="url(#b2)"><circle cx="{X:.1f}" cy="{Y:.1f}" r="34" fill="#cfeec0"/></g>')
-        s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="15" fill="none" stroke="{INK}" stroke-width="2"/><circle cx="{X:.1f}" cy="{Y:.1f}" r="4" fill="{INK}"/>')
-        tx, ty = (X + 26, Y - 22) if Y < MAP[1] + MAP[3] - 90 else (X + 30, Y - 64)
-        s.append(tag(tx, ty, lab, 17, '#e7f5c4'))
-        s.append(text(tx + 6, ty + 30, f'≈ {round(L / 10) * 10:.0f} m · 示意', 15, family=MONO, op=.7))
-    X, Y = P(*home)
-    s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="11" fill="{INK}"/><circle cx="{X:.1f}" cy="{Y:.1f}" r="21" fill="none" stroke="{INK}" stroke-width="1.6"/>')
-    s.append(tag(X + 28, Y + 6, '你家', 18, '#ffffff'))
-    for pl in G['places']:
-        if pl['n'] == '杜龙沟':
-            x, y = P(pl['x'], pl['z']); s.append(text(x - 60, y - 34, '杜龙沟 ↘', 20, 600))
-    rx, ry = P(*G['river'][15])
-    s.append(text(rx + 70, ry, '拒马河', 22, 600, op=.8))
+W, H = 1480, 2100
+HOME = (-60, -60)
+SHELTERS = [(-682, -262), (-232, 698)]
+village_e = sorted(bil(ELEV, h['x'], h['z']) for h in HOUSES if not h['east'] and abs(h['x'] + 50) < 450 and abs(h['z'] + 80) < 450)[len(HOUSES) // 6]
+
+# ------------------------------------------------------------ front
+def front():
+    M = Map((-1200, 1200, -1015, 1045), (0, 470, W, 1290))
+    hill = M.img(raster(M.ext, 400, 215, hillshade), 'opacity=".55"')
+    glow = raster(M.ext, 400, 215, hand_light)
+    s = [DEFS, f'<rect width="{W}" height="{H}" fill="{BG}"/>', M.clip('mf'), '<g clip-path="url(#mf)">', hill, M.contours(20, .05, .13)]
+    s.append('<g style="mix-blend-mode:screen">' + M.img(glow, 'filter="url(#g1)" opacity=".95"') + M.img(glow, 'filter="url(#g2)" opacity=".8"') + '</g>')
+    RW = {'main': 1.6, 'lane': 1.0, 'track': .8, 'path': .6}
+    s.append('<g fill="none" stroke="#ffffff">' + ''.join(f'<path d="{M.d(r["p"])}" stroke-width="{RW.get(r["k"], .8)}" stroke-opacity="{.5 if r["k"] in ("main", "lane") else .28}"/>' for r in G['roads']) + '</g>')
+    col = lambda h: ('#7fe9ff' if h['kind'] == 1 else '#ff6fd2') if h['hand'] < LOW else '#ffffff'
+    s.append(M.houses(M.box[2] / (M.ext[1] - M.ext[0]), col))
+    # shelters: lime light + route hairline
+    for g in SHELTERS:
+        X, Y = M.P(*g)
+        s.append(f'<path d="{M.d(route(HOME, g))}" fill="none" stroke="#c8ff00" stroke-width="2.2" stroke-dasharray="1 7" stroke-linecap="round"/>')
+        s.append(f'<g style="mix-blend-mode:screen"><circle cx="{X:.1f}" cy="{Y:.1f}" r="46" fill="#c8ff00" fill-opacity=".55" filter="url(#g3)"/></g>')
+        s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="9" fill="#c8ff00"/><circle cx="{X:.1f}" cy="{Y:.1f}" r="20" fill="none" stroke="#c8ff00" stroke-width="1.4"/>')
+        up = bil(ELEV, *g) - village_e
+        s.append(text(X + 30, Y - 4, '安置点', 22, 600, '#c8ff00') + text(X + 30, Y + 22, f'+{up:.0f} m', 18, family=MONO, fill='#c8ff00', op=.85))
+    X, Y = M.P(*HOME); s.append(f'<circle cx="{X:.1f}" cy="{Y:.1f}" r="7" fill="#fff"/>' + text(X + 16, Y + 7, '你家', 20, 600))
+    for nm, (x, z), a in [('拒马河', (520, -620), 'start'), ('杜龙沟', (-1000, -330), 'start'), ('沈家庵', (-330, -260), 'start'), ('一渡', (40, 520), 'start')]:
+        X, Y = M.P(x, z); s.append(text(X, Y, nm, 20, 500, op=.75, ls=4))
     s.append('</g>')
-    s.append(f'<rect x="{MAP[0]}" y="{MAP[1]}" width="{MAP[2]}" height="{MAP[3]}" fill="none" stroke="{INK}" stroke-width="1.2"/>')
-    # scale + north
-    sx, sy = MAP[0] + 20, MAP[1] + MAP[3] - 26; px500 = 500 / (MX1 - MX0) * MAP[2]
-    s.append(f'<rect x="{sx - 8}" y="{sy - 28}" width="{px500 + 120}" height="44" fill="{PAPER}" fill-opacity=".85"/>')
-    s.append(f'<path d="M{sx} {sy - 6}v10h{px500:.1f}v-10" fill="none" stroke="{INK}" stroke-width="1.4"/>' + text(sx + px500 + 12, sy + 4, '500 m', 15, family=MONO))
-    nx, ny = MAP[0] + MAP[2] - 36, MAP[1] + 46
-    s.append(f'<path d="M{nx} {ny - 22}l9 26l-9 -6l-9 6z" fill="{INK}"/>' + text(nx, ny + 26, 'N', 15, family=MONO, anchor='middle'))
-    return ''.join(s)
+    # type
+    s.append(text(70, 108, 'SHENJIA’AN · JUMA VALLEY · 39.595N 115.679E', 17, family=MONO, ls=2, op=.6))
+    s.append(text(1410, 108, '01 / 02', 17, family=MONO, anchor='end', ls=2, op=.6))
+    s.append(text(62, 300, '水记得路。', 150, 700, ls=-4))
+    s.append(text(70, 380, '暴雨里，水和泥总是走同一些低处。', 32, op=.72))
+    s.append(text(70, 424, '发光的地方，就是它们会经过的地方。', 32, op=.72))
+    # numbers
+    y = 1870
+    s.append(text(62, y, f'{n_low}', 150, 700, '#ff4fd8', ls=-5))
+    nw = len(str(n_low)) * 84 + 18
+    s.append(text(62 + nw, y, '户', 60, 700, '#ff4fd8'))
+    s.append(text(70, y + 44, f'住在比最近的水道高不到 {LOW:.0f} 米的地方', 24, op=.75))
+    s.append(text(760, y - 62, f'{n_low_g} 户 · 沟道', 26, 600, '#ff6fd2') + text(800, y - 18, f'{n_low_r} 户 · 拒马河', 26, 600, '#7fe9ff'))
+    s.append(text(1160, y - 62, f'2 处', 26, 600, '#c8ff00') + text(1160, y - 18, '安置点', 26, 600, '#c8ff00'))
+    s.append(f'<line x1="70" y1="1940" x2="1410" y2="1940" stroke="#fff" stroke-opacity=".18"/>')
+    s.append(text(70, 1985, f'HAND（离最近水道的高差）· Copernicus DEM 30 m · OpenStreetMap · 卫星影像识别 {len(HOUSES)} 栋房屋', 15, family=MONO, op=.5))
+    s.append(text(70, 2015, '安置点与路线为示意，需村委确认 · 非官方预警，以政府发布为准', 15, family=MONO, op=.5))
+    return f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">{"".join(s)}</svg>'
 
-# --------------------------------------------------------------- back (night)
+# ------------------------------------------------------------ back: four steps as small multiples
+MAIN = G['gullies'][0]
+EXT_S = (-1290, 180, -830, 270)
+def step_light(lv):
+    path = MAIN['path']; run = MAIN.get('run', [])
+    hi = sorted(ELEV[k] for k in range(N * N) if EXT_S[0] < cx(k % N) < EXT_S[1] and EXT_S[2] < cx(k // N) < EXT_S[3])
+    ridge = hi[int(len(hi) * .7)] if hi else 9e9
+    def f(x, z):
+        k = cell(x, z)
+        if lv == 0:   # cloud cap on the ridge
+            e = bil(ELEV, x, z); t = max(0, min(1, (e - ridge) / 140)) ** .8; return (*mixc((70, 120, 255), (200, 225, 255), t), 255 * t * .6)
+        if lv == 1:   # the whole catchment soaking up
+            if GID[k] != 1: return (0, 0, 0, 0)
+            hd = HAND[k]; t = .35 + .45 * max(0, 1 - hd / 60); return (*mixc(BLUE, (150, 60, 255), 1 - hd / 120 if hd < 120 else 0), 255 * t)
+        dc = segd(x, z, path); dr = segd(x, z, run) if run else 1e9
+        if lv == 2:   # creek turns muddy
+            t = max(0, 1 - dc / 55) ** 1.3; c = (0, 0, 0, 0)
+            if GID[k] == 1: c = (*BLUE, 40)
+            return (*MAG, 255 * t) if t > .02 else c
+        t1 = max(0, 1 - dc / 50) ** 1.3; t2 = max(0, 1 - dr / 120) ** 1.1    # debris reaches the village
+        if t2 > t1: return (*mixc(ORANGE, (255, 230, 160), t2 ** 2), 255 * t2)
+        return (*MAG, 255 * t1)
+    return f
+STEPS = [('01', '留意', '山戴帽 · 雷声远', '看天，把院里的东西收好', (110, 160, 255)),
+         ('02', '准备', '雨下透了 · 雨量桶到 10 cm', '证件和药装好，老人孩子先走', (140, 90, 255)),
+         ('03', '转移', '溪水变黄 · 带着树枝 · 桶到 20 cm', '去安置点，不用等通知', (255, 60, 190)),
+         ('04', '快跑', '水声突然停 · 沟里轰响', '往沟两侧高处跑，别顺着沟跑', (255, 110, 40))]
 def back():
-    s = [defs(), f'<rect width="{W}" height="{H}" fill="{PAPER}"/>',
-         header('CARD 01 · 夜里 / NIGHT', '看不见就听 · 听不清就量', '听声 量雨 认路', '夜里看不到云和水色，就靠耳朵和雨量桶。手电、雨衣放在门口。')]
-    y0, rh = 400, 170
-    for i, L in enumerate(LEVELS):
-        y = y0 + i * rh
-        cx, cy, r = 160, y + 84, 54 + i * 8
-        s.append(aura(cx, cy, r, i, 'b2'))
-        s.append(text(cx, cy + 16, L['n'], 44, 700, anchor='middle', ls=1))
-        if i: s.append(f'<line x1="70" y1="{y:.0f}" x2="1410" y2="{y:.0f}" stroke="{INK}" stroke-width="1" stroke-opacity=".18"/>')
-        for k, (q, ex, src_) in enumerate(L['night']):
-            x = 300 + k * 560
-            s.append(text(x, y + 74, q, 30, 600))
-            s.append(text(x, y + 108, ex, 20, op=.6))
-            s.append(pill(x, y + 146, src_, 15, 'start'))
-    s.append(text(70, 1135, '认路', 30, 700))
-    s.append(text(150, 1135, '弥散的颜色是低处：沟道和拒马河两侧，水和泥都往这里走。路线避开它们，往两侧的坡上走。', 21, op=.62))
-    s.append(mapsvg())
-    s.append(text(70, 1996, '地图：Copernicus GLO-30 DEM（等高线 20 m）· OpenStreetMap 道路 · 卫星影像识别的 654 栋房屋 · 路线与安置点为示意，需村委确认', 15, family=MONO, op=.6))
-    s.append(footer('口诀标“新编”的：现象有官方资料，句子为本项目新写，不是已查证的老话'))
+    s = [DEFS, f'<rect width="{W}" height="{H}" fill="{BG}"/>']
+    s.append(text(70, 108, 'FOUR STEPS · 杜龙沟 → 沈家庵', 17, family=MONO, ls=2, op=.6))
+    s.append(text(1410, 108, '02 / 02', 17, family=MONO, anchor='end', ls=2, op=.6))
+    s.append(text(62, 270, '看见什么，', 110, 700, ls=-3))
+    s.append(text(62, 395, '就做什么。', 110, 700, ls=-3))
+    gw, gh, gx0, gy0, gapx, gapy = 650, 430, 70, 500, 40, 230
+    hill = raster(EXT_S, 220, 160, hillshade)
+    for i, (no, name, sign, act, c) in enumerate(STEPS):
+        X, Y = gx0 + (i % 2) * (gw + gapx), gy0 + (i // 2) * (gh + gapy)
+        M = Map(EXT_S, (X, Y, gw, gh)); L = raster(EXT_S, 220, 160, step_light(i))
+        s += [M.clip(f'c{i}'), f'<g clip-path="url(#c{i})">', f'<rect x="{X}" y="{Y}" width="{gw}" height="{gh}" fill="#0b0b0d"/>', M.img(hill, 'opacity=".5"'), M.contours(40, .05, .1, 200)]
+        s.append('<g style="mix-blend-mode:screen">' + M.img(L, 'filter="url(#g1)"') + M.img(L, 'filter="url(#g2)" opacity=".7"') + '</g>')
+        s.append(M.houses(gw / (EXT_S[1] - EXT_S[0]), lambda h, i=i: '#ffc48a' if i == 3 and h['drun'] < 110 else '#6f6f74'))
+        s.append(f'<path d="{M.d(MAIN["path"] + MAIN.get("run", []))}" fill="none" stroke="#fff" stroke-width=".8" stroke-opacity=".35"/></g>')
+        cc = '#%02x%02x%02x' % c
+        s.append(text(X, Y + gh + 64, no, 20, family=MONO, fill=cc, ls=2))
+        s.append(text(X + 48, Y + gh + 72, name, 54, 700, cc))
+        s.append(text(X, Y + gh + 122, sign, 25, 500, op=.9))
+        s.append(text(X, Y + gh + 160, '→ ' + act, 25, op=.62))
+    s.append(f'<line x1="70" y1="1940" x2="1410" y2="1940" stroke="#fff" stroke-opacity=".18"/>')
+    s.append(text(70, 1985, '雨量桶：直筒桶放空地，水深 1 cm = 雨量 10 mm · 10 / 20 cm 为示意值，需按本沟标定', 15, family=MONO, op=.5))
+    s.append(text(70, 2015, '口诀含新编句（现象有官方资料：中国天气网 · 国家应急广播 · 应急管理部门）· 非官方预警', 15, family=MONO, op=.5))
     return f'<svg viewBox="0 0 {W} {H}" xmlns="http://www.w3.org/2000/svg">{"".join(s)}</svg>'
 
 page = f'''<!doctype html>
 <html lang="zh-CN"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>沈家庵村 · 山洪泥石流自然征兆卡 · 原型 v0.1</title>
+<title>水记得路 · 沈家庵山洪泥石流征兆卡 v0.2</title>
 <style>
 @page {{ size: 148mm 210mm; margin: 0 }}
-html,body {{ margin:0; background:#dedbd5; font-family:{SANS} }}
-.wrap {{ display:flex; flex-wrap:wrap; gap:36px; justify-content:center; padding:40px 24px 60px }}
-.side {{ width:min(46vw, 620px); aspect-ratio:148/210; box-shadow:0 30px 60px -30px rgba(0,0,0,.35) }}
+html,body {{ margin:0; background:#000; font-family:{SANS} }}
+.wrap {{ display:flex; flex-wrap:wrap; gap:40px; justify-content:center; padding:40px 24px 60px }}
+.side {{ width:min(46vw, 640px); aspect-ratio:148/210; box-shadow:0 0 0 1px rgba(255,255,255,.08) }}
 .side svg {{ width:100%; height:100%; display:block }}
-.cap {{ width:100%; text-align:center; font:12px/1.6 {MONO}; letter-spacing:.08em; color:#555 }}
 @media (max-width:900px) {{ .side {{ width:92vw }} }}
-@media print {{ html,body {{ background:none }} .wrap {{ display:block; padding:0 }} .cap {{ display:none }}
-  .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
-</style></head><body>
-<div class="wrap">
-<div class="cap">沈家庵村 · 山洪泥石流自然征兆卡 · A5 双面 · 原型 v0.1 · 打印：浏览器“打印”→ 纸张 A5、边距无、勾选“背景图形”</div>
-<div class="side">{front()}</div>
-<div class="side">{back()}</div>
-</div></body></html>'''
+@media print {{ .wrap {{ display:block; padding:0 }} .side {{ width:148mm; height:210mm; box-shadow:none; break-after:page }} }}
+</style></head><body><div class="wrap"><div class="side">{front()}</div><div class="side">{back()}</div></div></body></html>'''
 open(os.path.join(HERE, 'index.html'), 'w', encoding='utf-8').write(page)
-print('wrote card/index.html', len(page) // 1024, 'KB')
+print(f'houses {len(HOUSES)} (east bank added {n_east_new}) · low (HAND<{LOW:.0f} m) {n_low}: gully {n_low_g}, river {n_low_r} · village elev {village_e:.0f} m · {len(page) // 1024} KB')

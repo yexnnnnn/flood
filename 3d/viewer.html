@@ -1,0 +1,515 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<title>沈家庵村 · 3D</title>
+<style>
+:root { --glass:rgba(16,24,18,.42); --edge:rgba(255,255,255,.18); --dark:#10160f; --sans:'PingFang SC','Noto Sans SC','Helvetica Neue',Arial,sans-serif; --mono:'SF Mono',ui-monospace,Menlo,monospace;
+  --st:env(safe-area-inset-top,0px); --sb:env(safe-area-inset-bottom,0px); }
+* { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
+html, body { margin:0; height:100%; overflow:hidden; background:#bccbd4; font-family:var(--sans); color:#fff; -webkit-user-select:none; user-select:none; overscroll-behavior:none; }
+canvas#gl { position:fixed; inset:0; width:100%; height:100%; touch-action:none; display:block; }
+.glass { background:var(--glass); -webkit-backdrop-filter:blur(22px) saturate(1.5); backdrop-filter:blur(22px) saturate(1.5);
+  border:1px solid var(--edge); box-shadow:inset 0 1px 0 rgba(255,255,255,.14), 0 12px 40px rgba(0,0,0,.22); }
+#labels { position:fixed; inset:0; pointer-events:none; }
+.lb { position:absolute; left:0; top:0; white-space:nowrap; font-size:13px; letter-spacing:.06em; transform:translate(-50%,-50%);
+  text-shadow:0 0 3px rgba(0,0,0,.75), 0 1px 2px rgba(0,0,0,.6); will-change:transform; }
+.lb.village { font-size:15px; font-weight:600; } .lb.peak::before { content:'▲ '; font-size:10px; } .lb.river { font-style:italic; opacity:.9; color:#dff2ff; }
+.pin { position:absolute; left:0; top:0; pointer-events:auto; will-change:transform; }
+.pin .st { position:absolute; left:-1px; bottom:0; width:2px; height:34px; background:linear-gradient(rgba(255,255,255,.95), rgba(255,255,255,0)); }
+.pin .hd { position:absolute; left:-17px; bottom:30px; width:34px; height:34px; border-radius:50%; display:grid; place-items:center;
+  font:600 12px var(--mono); color:#fff; background:rgba(16,24,18,.55); border:1.5px solid rgba(255,255,255,.9); -webkit-backdrop-filter:blur(10px); backdrop-filter:blur(10px); transition:transform .25s, background .25s; }
+.pin.on .hd { color:var(--dark); border-color:#fff; }
+.pin.sel .hd { transform:scale(1.22); }
+#top { position:fixed; left:calc(14px + env(safe-area-inset-left,0px)); right:calc(14px + env(safe-area-inset-right,0px)); top:calc(12px + var(--st)); display:flex; gap:10px; align-items:stretch; pointer-events:none; }
+#title { border-radius:20px; padding:12px 16px; pointer-events:auto; }
+#title b { display:block; font-size:17px; font-weight:600; letter-spacing:.04em; } #title span { font-size:11px; opacity:.65; letter-spacing:.1em; }
+#status { margin-left:auto; border-radius:999px; padding:8px 16px 8px 8px; display:flex; align-items:center; gap:10px; pointer-events:auto; }
+#status .orb { width:34px; height:34px; border-radius:50%; display:grid; place-items:center; font-weight:700; font-size:15px; transition:background .5s; }
+#status small { display:block; font-size:10px; opacity:.6; letter-spacing:.12em; } #status b { font-size:14px; font-weight:600; }
+#tools { position:fixed; right:calc(14px + env(safe-area-inset-right,0px)); bottom:calc(16px + var(--sb)); display:flex; flex-direction:column; gap:10px; }
+#tools button { width:46px; height:46px; border-radius:50%; color:#fff; font:600 15px var(--sans); display:grid; place-items:center; cursor:pointer; padding:0; }
+#tools button svg { width:22px; height:22px; }
+#compass svg { transition:transform .1s linear; }
+#sheet { position:fixed; left:calc(12px + env(safe-area-inset-left,0px)); bottom:calc(12px + var(--sb)); width:min(420px, calc(100vw - 88px)); border-radius:26px; padding:18px 20px 18px;
+  transform:translateY(calc(100% + 40px)); transition:transform .45s cubic-bezier(.2,.8,.2,1); }
+#sheet.open { transform:none; }
+#sheet .g { font:12px var(--mono); opacity:.6; letter-spacing:.08em; }
+#sheet h2 { margin:6px 0 2px; font-size:26px; font-weight:600; letter-spacing:.02em; }
+#sheet .f { font-size:14px; opacity:.75; margin-bottom:10px; }
+#sheet .why { font-size:13px; line-height:1.65; opacity:.82; }
+#sheet .src { font-size:11px; opacity:.45; margin-top:8px; }
+#sheet .row { display:flex; gap:10px; align-items:center; margin-top:14px; }
+#sheet .lvl { font-size:12px; padding:6px 12px; border-radius:999px; color:var(--dark); font-weight:600; }
+#seen { margin-left:auto; border:0; border-radius:999px; padding:10px 18px; font:600 14px var(--sans); background:#fff; color:var(--dark); cursor:pointer; }
+#seen.on { background:transparent; color:#fff; border:1px solid rgba(255,255,255,.6); }
+#x { position:absolute; right:12px; top:10px; width:30px; height:30px; border-radius:50%; border:0; background:rgba(255,255,255,.12); color:#fff; font-size:16px; cursor:pointer; }
+#toast { position:fixed; left:50%; top:calc(84px + var(--st)); transform:translate(-50%,-20px); opacity:0; border-radius:18px; padding:12px 18px; font-size:14px; transition:all .4s; pointer-events:none; max-width:86vw; text-align:center; }
+#toast.show { opacity:1; transform:translate(-50%,0); }
+#hint { position:fixed; left:50%; bottom:calc(22px + var(--sb)); transform:translateX(-50%); font-size:12px; opacity:.8; border-radius:999px; padding:8px 14px; transition:opacity .6s; pointer-events:none; white-space:nowrap; }
+#load { position:fixed; inset:0; display:grid; place-items:center; background:#0d140f; color:#fff; font-size:14px; letter-spacing:.1em; transition:opacity .6s; z-index:9; }
+</style>
+</head>
+<body>
+<canvas id="gl"></canvas>
+<div id="labels"></div>
+<div id="top">
+  <div id="title" class="glass"><b>沈家庵村</b><span>涞水 · 拒马河 · 3D</span></div>
+  <div id="status" class="glass"><div class="orb" id="orb">—</div><div><small>当前预警</small><b id="stxt">暂无征兆</b></div></div>
+</div>
+<div id="tools">
+  <button id="compass" class="glass" title="指北"><svg viewBox="0 0 24 24"><path d="M12 2 L16 12 L12 10.5 L8 12 Z" fill="#ff4d4d"/><path d="M12 22 L8 12 L12 13.5 L16 12 Z" fill="#fff"/></svg></button>
+  <button id="dim" class="glass" title="2D / 3D">2D</button>
+  <button id="zin" class="glass" title="放大">＋</button>
+  <button id="zout" class="glass" title="缩小">－</button>
+  <button id="home" class="glass" title="回到村子"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="2"><circle cx="12" cy="12" r="4"/><path d="M12 2v4M12 18v4M2 12h4M18 12h4"/></svg></button>
+</div>
+<div id="sheet" class="glass">
+  <button id="x">×</button>
+  <div class="g" id="sg"></div><h2 id="ss"></h2><div class="f" id="sf"></div>
+  <div class="why" id="sw"></div><div class="src" id="sr"></div>
+  <div class="row"><span class="lvl" id="sl"></span><button id="seen">我看见了</button></div>
+</div>
+<div id="toast" class="glass"></div>
+<div id="hint" class="glass">单指拖动 · 双指缩放和旋转 · 双指上下推改变俯仰</div>
+<div id="load">正在生成地形…</div>
+<script>
+'use strict';
+const DATA = __DATA__;
+const HB64 = '__HEIGHTS__';
+const TEX = 'data:image/jpeg;base64,__TEX__';
+
+// ------------------------------------------------------------------ math
+const M4 = {
+  mul(a, b) { const o = new Float32Array(16); for (let c = 0; c < 4; c++) for (let r = 0; r < 4; r++) { let s = 0; for (let k = 0; k < 4; k++) s += a[k * 4 + r] * b[c * 4 + k]; o[c * 4 + r] = s; } return o; },
+  persp(f, a, n, fa) { const t = 1 / Math.tan(f / 2), o = new Float32Array(16); o[0] = t / a; o[5] = t; o[10] = (fa + n) / (n - fa); o[11] = -1; o[14] = 2 * fa * n / (n - fa); return o; },
+  look(e, c, u) { let z = norm(sub(e, c)), x = norm(cross(u, z)), y = cross(z, x);
+    return new Float32Array([x[0], y[0], z[0], 0, x[1], y[1], z[1], 0, x[2], y[2], z[2], 0, -dot(x, e), -dot(y, e), -dot(z, e), 1]); },
+  inv(m) { const a = m, o = new Float32Array(16);
+    const b00 = a[0] * a[5] - a[1] * a[4], b01 = a[0] * a[6] - a[2] * a[4], b02 = a[0] * a[7] - a[3] * a[4], b03 = a[1] * a[6] - a[2] * a[5], b04 = a[1] * a[7] - a[3] * a[5], b05 = a[2] * a[7] - a[3] * a[6],
+      b06 = a[8] * a[13] - a[9] * a[12], b07 = a[8] * a[14] - a[10] * a[12], b08 = a[8] * a[15] - a[11] * a[12], b09 = a[9] * a[14] - a[10] * a[13], b10 = a[9] * a[15] - a[11] * a[13], b11 = a[10] * a[15] - a[11] * a[14];
+    const d = 1 / (b00 * b11 - b01 * b10 + b02 * b09 + b03 * b08 - b04 * b07 + b05 * b06);
+    o[0] = (a[5] * b11 - a[6] * b10 + a[7] * b09) * d; o[1] = (a[2] * b10 - a[1] * b11 - a[3] * b09) * d; o[2] = (a[13] * b05 - a[14] * b04 + a[15] * b03) * d; o[3] = (a[10] * b04 - a[9] * b05 - a[11] * b03) * d;
+    o[4] = (a[6] * b08 - a[4] * b11 - a[7] * b07) * d; o[5] = (a[0] * b11 - a[2] * b08 + a[3] * b07) * d; o[6] = (a[14] * b02 - a[12] * b05 - a[15] * b01) * d; o[7] = (a[8] * b05 - a[10] * b02 + a[11] * b01) * d;
+    o[8] = (a[4] * b10 - a[5] * b08 + a[7] * b06) * d; o[9] = (a[1] * b08 - a[0] * b10 - a[3] * b06) * d; o[10] = (a[12] * b04 - a[13] * b02 + a[15] * b00) * d; o[11] = (a[9] * b02 - a[8] * b04 - a[11] * b00) * d;
+    o[12] = (a[5] * b07 - a[4] * b09 - a[6] * b06) * d; o[13] = (a[0] * b09 - a[1] * b07 + a[2] * b06) * d; o[14] = (a[13] * b01 - a[12] * b03 - a[14] * b00) * d; o[15] = (a[8] * b03 - a[9] * b01 + a[10] * b00) * d; return o; },
+};
+function sub(a, b) { return [a[0] - b[0], a[1] - b[1], a[2] - b[2]]; }
+function cross(a, b) { return [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]]; }
+function dot(a, b) { return a[0] * b[0] + a[1] * b[1] + a[2] * b[2]; }
+function norm(a) { const l = Math.hypot(a[0], a[1], a[2]) || 1; return [a[0] / l, a[1] / l, a[2] / l]; }
+const clamp = (x, a, b) => Math.max(a, Math.min(b, x)), lerp = (a, b, t) => a + (b - a) * t;
+let seed = 7; const rnd = () => ((seed = (seed * 1103515245 + 12345) & 0x7fffffff) / 0x7fffffff);
+
+// ------------------------------------------------------------------ terrain grid
+const G = DATA.grid, NX = G.nx, NZ = G.nz, ST = G.step, X0 = G.x0, Z0 = G.z0, X1 = X0 + (NX - 1) * ST, Z1 = Z0 + (NZ - 1) * ST, HALF = G.half;
+const HG = (() => { const b = atob(HB64), u = new Uint8Array(b.length); for (let i = 0; i < b.length; i++) u[i] = b.charCodeAt(i);
+  const q = new Uint16Array(u.buffer), h = new Float32Array(q.length); for (let i = 0; i < q.length; i++) h[i] = G.hmin + q[i] / 10; return h; })();
+function hAt(x, z) {
+  const fx = clamp((x - X0) / ST, 0, NX - 1.001), fz = clamp((z - Z0) / ST, 0, NZ - 1.001), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, k = j * NX + i;
+  return lerp(lerp(HG[k], HG[k + 1], tx), lerp(HG[k + NX], HG[k + NX + 1], tx), tz);
+}
+// river: distance to the Juma centreline and the low-flow level along it
+const RIVS = DATA.rivers.concat([DATA.rivlo.map(p => [p[0], p[1]])]);
+function rivDist(x, z) {
+  let best = 1e9;
+  for (const P of RIVS) for (let k = 1; k < P.length; k++) {
+    const a = P[k - 1], b = P[k], dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz || 1, t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / L, 0, 1);
+    const d = Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); if (d < best) best = d; }
+  return best;
+}
+function rivLevel(x, z) {
+  const P = DATA.rivlo; let best = 1e9, v = P[0][2];
+  for (let k = 1; k < P.length; k++) { const a = P[k - 1], b = P[k], dx = b[0] - a[0], dz = b[1] - a[1], L = dx * dx + dz * dz || 1, t = clamp(((x - a[0]) * dx + (z - a[1]) * dz) / L, 0, 1);
+    const d = Math.hypot(x - a[0] - dx * t, z - a[1] - dz * t); if (d < best) { best = d; v = a[2] + (b[2] - a[2]) * t; } }
+  return v;
+}
+
+// ------------------------------------------------------------------ GL
+const cv = document.getElementById('gl');
+const gl = cv.getContext('webgl2', { antialias: true, alpha: false, powerPreference: 'high-performance', preserveDrawingBuffer: true });
+if (!gl) { document.getElementById('load').textContent = '这个浏览器不支持 WebGL2'; throw new Error('no webgl2'); }
+function sh(type, src) { const s = gl.createShader(type); gl.shaderSource(s, src); gl.compileShader(s); if (!gl.getShaderParameter(s, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(s) + src.slice(0, 200)); return s; }
+function prog(vs, fs) { const p = gl.createProgram(); gl.attachShader(p, sh(gl.VERTEX_SHADER, vs)); gl.attachShader(p, sh(gl.FRAGMENT_SHADER, fs)); gl.linkProgram(p);
+  if (!gl.getProgramParameter(p, gl.LINK_STATUS)) throw new Error(gl.getProgramInfoLog(p));
+  const u = {}, n = gl.getProgramParameter(p, gl.ACTIVE_UNIFORMS); for (let i = 0; i < n; i++) { const a = gl.getActiveUniform(p, i); u[a.name.replace('[0]', '')] = gl.getUniformLocation(p, a.name); }
+  return { p, u }; }
+function vao(attrs, idx) { const v = gl.createVertexArray(); gl.bindVertexArray(v);
+  for (const [loc, data, size, div] of attrs) { const b = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, b); gl.bufferData(gl.ARRAY_BUFFER, data, gl.STATIC_DRAW);
+    gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, size, gl.FLOAT, false, 0, 0); if (div) gl.vertexAttribDivisor(loc, 1); }
+  if (idx) { const b = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, b); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW); }
+  gl.bindVertexArray(null); return v; }
+
+const COMMON = `
+uniform vec3 uCam; uniform vec3 uSun; uniform vec3 uFog; uniform vec4 uExt;
+vec3 fogit(vec3 c, vec3 wp) {
+  float d = length(wp - uCam);
+  float f = 1. - exp(-pow(d / 6500., 1.5));
+  float ed = min(min(wp.x - uExt.x, uExt.z - wp.x), min(wp.z - uExt.y, uExt.w - wp.z));
+  f = max(f, 1. - smoothstep(0., 520., ed));
+  return mix(c, uFog, clamp(f, 0., 1.));
+}
+float h2(vec2 p) { return fract(sin(dot(p, vec2(127.1, 311.7))) * 43758.5453); }
+float vn(vec2 p) { vec2 i = floor(p), f = fract(p); f = f * f * (3. - 2. * f);
+  return mix(mix(h2(i), h2(i + vec2(1, 0)), f.x), mix(h2(i + vec2(0, 1)), h2(i + 1.), f.x), f.y); }
+float fbm(vec2 p) { float a = .5, s = 0.; for (int i = 0; i < 4; i++) { s += a * vn(p); p = p * 2.03 + 1.7; a *= .5; } return s; }
+`;
+
+// terrain
+const TER = prog(`#version 300 es
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec2 aX;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out vec2 vX;
+void main() { vP = aP; vN = aN; vX = aX; gl_Position = uVP * vec4(aP, 1.); }`,
+`#version 300 es
+precision highp float;
+in vec3 vP; in vec3 vN; in vec2 vX; out vec4 o;
+uniform sampler2D uTex; uniform float uHalf; uniform int uNG; uniform vec4 uGlow[16]; uniform vec3 uGlowC[16];
+${COMMON}
+void main() {
+  vec3 N = normalize(vN); float sl = 1. - N.y; vec2 q = vP.xz;
+  float n1 = fbm(q / 38.), n2 = fbm(q / 7. + 9.), n3 = fbm(q / 190. + 3.);
+  vec3 forest = mix(vec3(40, 66, 37), vec3(84, 106, 56), clamp(n1 * 1.1 + (n2 - .5) * .5, 0., 1.)) / 255.;
+  forest = mix(forest, vec3(96, 112, 64) / 255., smoothstep(.55, .8, n3) * .5);
+  vec3 rock = mix(vec3(120, 120, 104), vec3(170, 166, 146), n2) / 255.;
+  vec3 sand = mix(vec3(190, 180, 154), vec3(222, 212, 186), n2) / 255.;
+  vec3 field = mix(mix(vec3(118, 132, 70), vec3(160, 146, 104), step(.5, vn(q / 55.))), vec3(96, 120, 60), step(.62, vn(q / 31. + 4.))) / 255.;
+  float dr = vX.x, ha = vX.y;
+  vec3 c = forest;
+  c = mix(c, rock, smoothstep(.42, .7, sl + (n2 - .5) * .35 + (n1 - .5) * .2) * .85);
+  float flatv = (1. - smoothstep(.05, .14, sl)) * (1. - smoothstep(8., 26., ha));
+  c = mix(c, field, flatv);
+  float bed = (1. - smoothstep(110., 210., dr + n1 * 60.)) * (1. - smoothstep(1.5, 5., ha));
+  c = mix(c, sand, bed);
+  float lam = max(dot(N, uSun), 0.);
+  float sky = .5 + .5 * N.y;
+  vec3 proc = c * (.34 * sky + .82 * lam) * 1.08;
+  float e = max(abs(q.x), abs(q.y)), w = 1. - smoothstep(uHalf - 130., uHalf - 4., e);
+  vec3 tx = texture(uTex, clamp((q + uHalf) / (2. * uHalf), 0., 1.)).rgb;
+  vec3 tl = tx * (.80 + .30 * lam);            // the raster already carries hillshade; light it only a little
+  vec3 col = mix(proc, tl, w);
+  for (int i = 0; i < 16; i++) { if (i >= uNG) break;
+    float d = length(q - uGlow[i].xy) / uGlow[i].z; float g = exp(-d * d) * uGlow[i].w;
+    col = 1. - (1. - col) * (1. - uGlowC[i] * g); }
+  o = vec4(fogit(col, vP), 1.);
+}`);
+
+// lit meshes (houses) and instanced trees share the fragment shader
+const LIT_FS = `#version 300 es
+precision highp float; in vec3 vP; in vec3 vN; in vec3 vC; out vec4 o;
+${COMMON}
+void main() { vec3 N = normalize(vN); float lam = max(dot(N, uSun), 0.), sky = .55 + .45 * N.y;
+  vec3 c = vC * (.36 * sky + .78 * lam) * 1.05; o = vec4(fogit(c, vP), 1.); }`;
+const HOU = prog(`#version 300 es
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec3 aC;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out vec3 vC;
+void main() { vP = aP; vN = aN; vC = aC; gl_Position = uVP * vec4(aP, 1.); }`, LIT_FS);
+const TRE = prog(`#version 300 es
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; layout(location=2) in vec4 iP; layout(location=3) in vec3 iC;
+uniform mat4 uVP; out vec3 vP; out vec3 vN; out vec3 vC;
+void main() { vec3 p = iP.xyz + vec3(aP.x * iP.w, aP.y * iP.w * 1.15, aP.z * iP.w);
+  vP = p; vN = aN; vC = iC * mix(.62, 1.12, clamp(aP.y, 0., 1.)); gl_Position = uVP * vec4(p, 1.); }`, LIT_FS);
+const WAT = prog(`#version 300 es
+layout(location=0) in vec3 aP; uniform mat4 uVP; out vec3 vP;
+void main() { vP = aP; gl_Position = uVP * vec4(aP, 1.); }`,
+`#version 300 es
+precision highp float; in vec3 vP; out vec4 o; uniform float uT;
+${COMMON}
+void main() {
+  vec2 q = vP.xz; float e = .9;
+  float a = fbm(q / 6. + vec2(uT * .25, uT * .1)), b = fbm(q / 6. + vec2(.7, 0) + vec2(uT * .25, uT * .1)), c = fbm(q / 6. + vec2(0, .7) + vec2(uT * .25, uT * .1));
+  vec3 N = normalize(vec3((a - b) * e, 1., (a - c) * e));
+  vec3 V = normalize(uCam - vP); float fr = pow(1. - max(dot(N, V), 0.), 4.);
+  vec3 base = vec3(54, 92, 84) / 255.;
+  vec3 skyc = mix(uFog, vec3(.58, .72, .86), .5);
+  vec3 col = mix(base * (.7 + .3 * max(dot(N, uSun), 0.)), skyc, .18 + .62 * fr);
+  col += pow(max(dot(reflect(-uSun, N), V), 0.), 120.) * vec3(1., .96, .88) * .9;
+  o = vec4(fogit(col, vP), .9);
+}`);
+const SKY = prog(`#version 300 es
+const vec2 P[3] = vec2[3](vec2(-1, -1), vec2(3, -1), vec2(-1, 3));
+out vec2 vU; void main() { vU = P[gl_VertexID]; gl_Position = vec4(P[gl_VertexID], .9999, 1.); }`,
+`#version 300 es
+precision highp float; in vec2 vU; out vec4 o; uniform mat4 uIVP; uniform vec3 uFog; uniform vec3 uCam;
+void main() { vec4 a = uIVP * vec4(vU, 1., 1.); vec3 d = normalize(a.xyz / a.w - uCam);
+  vec3 c = mix(uFog, vec3(.42, .6, .82), smoothstep(.0, .55, d.y)); o = vec4(c, 1.); }`);
+
+// ------------------------------------------------------------------ build meshes
+let TX = null; // per-vertex [distance to river, height above low-flow level]
+function inChannel(x, z) { if (!TX) return false;
+  const i = clamp(Math.round((x - X0) / ST), 0, NX - 1), j = clamp(Math.round((z - Z0) / ST), 0, NZ - 1), k = j * NX + i;
+  return TX[k * 2] < 190 && TX[k * 2 + 1] < 4.5; }
+const PHONE = Math.min(innerWidth, innerHeight) < 600 || matchMedia('(pointer: coarse)').matches;
+const TREE_KEEP = PHONE ? .5 : 1;
+let terrainV, terrainN, waterV, waterN, houseV, houseN, treeV, treeN, treeI;
+function buildTerrain() {
+  const n = NX * NZ, P = new Float32Array(n * 3), Nn = new Float32Array(n * 3), X = new Float32Array(n * 2);
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) {
+    const k = j * NX + i, x = X0 + i * ST, z = Z0 + j * ST;
+    P[k * 3] = x; P[k * 3 + 1] = HG[k]; P[k * 3 + 2] = z;
+    const hl = HG[j * NX + Math.max(0, i - 1)], hr = HG[j * NX + Math.min(NX - 1, i + 1)], hu = HG[Math.max(0, j - 1) * NX + i], hd = HG[Math.min(NZ - 1, j + 1) * NX + i];
+    const nn = norm([hl - hr, 2 * ST, hu - hd]); Nn[k * 3] = nn[0]; Nn[k * 3 + 1] = nn[1]; Nn[k * 3 + 2] = nn[2];
+  }
+  // river distance / height above river: computed on a 40 m grid and interpolated (fast enough on a phone)
+  const C = 40, cx = Math.ceil((X1 - X0) / C) + 1, cz = Math.ceil((Z1 - Z0) / C) + 1, RD = new Float32Array(cx * cz), RL = new Float32Array(cx * cz);
+  for (let j = 0; j < cz; j++) for (let i = 0; i < cx; i++) { const x = X0 + i * C, z = Z0 + j * C; RD[j * cx + i] = rivDist(x, z); RL[j * cx + i] = rivLevel(x, z); }
+  const bil = (A, x, z) => { const fx = clamp((x - X0) / C, 0, cx - 1.001), fz = clamp((z - Z0) / C, 0, cz - 1.001), i = fx | 0, j = fz | 0, tx = fx - i, tz = fz - j, k = j * cx + i;
+    return lerp(lerp(A[k], A[k + 1], tx), lerp(A[k + cx], A[k + cx + 1], tx), tz); };
+  const WL = new Float32Array(n);
+  for (let k = 0; k < n; k++) { const x = P[k * 3], z = P[k * 3 + 2], d = bil(RD, x, z), l = bil(RL, x, z); X[k * 2] = d; X[k * 2 + 1] = HG[k] - l; WL[k] = l; }
+  TX = X;
+  const idx = new Uint32Array((NX - 1) * (NZ - 1) * 6); let t = 0;
+  for (let j = 0; j < NZ - 1; j++) for (let i = 0; i < NX - 1; i++) { const a = j * NX + i, b = a + 1, c = a + NX, d = c + 1; idx.set([a, c, b, b, c, d], t); t += 6; }
+  terrainV = vao([[0, P, 3], [1, Nn, 3], [2, X, 2]], idx); terrainN = idx.length;
+  // water: a sheet over the channel at the low-flow level (+0.6 m), clamped to the local floor so it never floats downstream
+  const wv = [], wi = [], map = new Int32Array(n).fill(-1), R = 4;
+  for (let j = 0; j < NZ; j++) for (let i = 0; i < NX; i++) { const k = j * NX + i; if (X[k * 2] > 170) continue;
+    let mn = 1e9; for (let b = -R; b <= R; b++) for (let a = -R; a <= R; a++) { const jj = j + b, ii = i + a; if (jj < 0 || ii < 0 || jj >= NZ || ii >= NX) continue; mn = Math.min(mn, HG[jj * NX + ii]); }
+    let y = Math.min(WL[k] + .6, mn + 1.1);
+    // inside the crop the raster knows where the wet channel is: lift the sheet just above the bed there (sand bars stay dry)
+    const c = texAt(P[k * 3], P[k * 3 + 2]);
+    if (c && X[k * 2 + 1] < 3) { const lum = .3 * c[0] + .59 * c[1] + .11 * c[2]; if (lum < 118 && c[2] > c[0] * .9) y = Math.max(y, HG[k] + .35); }
+    map[k] = wv.length / 3; wv.push(P[k * 3], y, P[k * 3 + 2]); }
+  for (let j = 0; j < NZ - 1; j++) for (let i = 0; i < NX - 1; i++) { const a = j * NX + i, b = a + 1, c = a + NX, d = c + 1;
+    if (map[a] < 0 || map[b] < 0 || map[c] < 0 || map[d] < 0) continue; wi.push(map[a], map[c], map[b], map[b], map[c], map[d]); }
+  waterV = vao([[0, new Float32Array(wv), 3]], new Uint32Array(wi)); waterN = wi.length;
+}
+
+let texPix = null, TW = 0;
+function texAt(x, z) { if (!texPix || Math.abs(x) >= HALF || Math.abs(z) >= HALF) return null;
+  const i = Math.floor((x + HALF) / (2 * HALF) * TW), j = Math.floor((z + HALF) / (2 * HALF) * TW), q = (j * TW + i) * 4;
+  return [texPix[q], texPix[q + 1], texPix[q + 2]]; }
+
+function buildHouses() {
+  const P = [], N = [], C = [];
+  const quad = (a, b, c, d, n, col) => { for (const p of [a, b, c, a, c, d]) { P.push(...p); N.push(...n); C.push(...col); } };
+  DATA.houses.forEach(([x, z, w, d, a], k) => {
+    const ca = Math.cos(a), sa = Math.sin(a), hw = w / 2, hd = d / 2;
+    const at = (u, v, y) => [x + ca * u - sa * v, y, z + sa * u + ca * v];
+    let g = 1e9; for (const [u, v] of [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]]) { const p = at(u, v, 0); g = Math.min(g, hAt(p[0], p[2])); }
+    const area = w * d, wallH = area > 160 ? 6.2 : area > 90 ? 4.2 : 3.2, top = g + wallH, b0 = g - 1.5;
+    const tc = texAt(x, z), roof = tc ? tc.map(v => v / 255) : [.62, .61, .58];
+    const wall = [.80, .78, .73].map((v, i) => v * .85 + roof[i] * .15);
+    const pitched = (k * 2654435761 >>> 0) % 100 < 55, ridge = pitched ? 1.7 : 0;
+    const c4 = [[-hw, -hd], [hw, -hd], [hw, hd], [-hw, hd]];
+    for (let e = 0; e < 4; e++) { const [u0, v0] = c4[e], [u1, v1] = c4[(e + 1) % 4], nu = (v1 - v0), nv = -(u1 - u0), L = Math.hypot(nu, nv);
+      const n = [(ca * nu - sa * nv) / L, 0, (sa * nu + ca * nv) / L];
+      quad(at(u0, v0, b0), at(u1, v1, b0), at(u1, v1, top), at(u0, v0, top), n, wall); }
+    if (!pitched) quad(at(-hw, -hd, top), at(hw, -hd, top), at(hw, hd, top), at(-hw, hd, top), [0, 1, 0], roof);
+    else { // gable, ridge along u (the long side, matching the lit / shaded halves in the raster)
+      const r0 = at(-hw, 0, top + ridge), r1 = at(hw, 0, top + ridge);
+      const nN = norm([sa * ridge, hd, -ca * ridge]), nS = norm([-sa * ridge, hd, ca * ridge]);
+      const lit = roof.map(v => Math.min(1, v * 1.08)), shd = roof.map(v => v * .9);
+      quad(at(-hw, -hd, top), at(hw, -hd, top), r1, r0, nN, lit);
+      quad(r0, r1, at(hw, hd, top), at(-hw, hd, top), nS, shd);
+      // gable ends
+      for (const s of [-1, 1]) { const a0 = at(s * hw, -hd, top), a1 = at(s * hw, hd, top), r = s < 0 ? r0 : r1, n = [ca * s, 0, sa * s];
+        for (const p of s < 0 ? [a0, a1, r] : [a1, a0, r]) { P.push(...p); N.push(...n); C.push(...wall); } }
+    }
+  });
+  houseV = vao([[0, new Float32Array(P), 3], [1, new Float32Array(N), 3], [2, new Float32Array(C), 3]]); houseN = P.length / 3;
+}
+
+function buildTrees() {
+  // crown: a 7-sided bicone, unit radius, y from 0 (ground) to 1.6
+  const S = 7, ring = [], P = [], N = [];
+  for (let k = 0; k < S; k++) { const a = k / S * Math.PI * 2; ring.push([Math.cos(a), .62, Math.sin(a)]); }
+  const top = [0, 1.7, 0], bot = [0, .05, 0];
+  const tri = (a, b, c) => { const n = norm(cross(sub(b, a), sub(c, a))); for (const p of [a, b, c]) { P.push(...p); N.push(...norm([p[0] * .7 + n[0] * .3, p[1] - .6 + n[1] * .5, p[2] * .7 + n[2] * .3])); } };
+  for (let k = 0; k < S; k++) { const a = ring[k], b = ring[(k + 1) % S]; tri(top, b, a); tri(bot, a, b); }
+  const I = [], Cc = [];
+  const add = (x, z, r, c) => { if (inChannel(x, z) || rnd() > TREE_KEEP) return; const y = hAt(x, z); I.push(x, y - .4, z, r); Cc.push(c[0], c[1], c[2]); };
+  // inside the crop: wherever the raster is dark canopy green
+  const step = 5.2;
+  for (let z = -HALF + 2; z < HALF - 2; z += step) for (let x = -HALF + 2; x < HALF - 2; x += step) {
+    const px = x + (rnd() - .5) * step, pz = z + (rnd() - .5) * step, c = texAt(px, pz); if (!c) continue;
+    const [r, g, b] = c, lum = .3 * r + .59 * g + .11 * b;
+    const can = g > r * 1.08 && g > b * 1.25 && lum < 112;
+    if (!can || rnd() > .62) continue;
+    const s = .82 + rnd() * .36;
+    add(px, pz, 2.6 + rnd() * 2.2, [r / 255 * s * 1.05, g / 255 * s * 1.05, b / 255 * s]);
+  }
+  // outside: forest on slopes above the valley floor
+  const TONES = [[42, 68, 38], [52, 80, 44], [64, 92, 50], [78, 104, 56], [36, 58, 34], [58, 74, 40]];
+  const step2 = 11;
+  for (let z = Z0 + 300; z < Z1 - 300; z += step2) for (let x = X0 + 300; x < X1 - 300; x += step2) {
+    if (Math.abs(x) < HALF - 60 && Math.abs(z) < HALF - 60) continue;
+    const px = x + (rnd() - .5) * step2, pz = z + (rnd() - .5) * step2, h = hAt(px, pz);
+    const sl = Math.hypot(hAt(px + 10, pz) - hAt(px - 10, pz), hAt(px, pz + 10) - hAt(px, pz - 10)) / 20;
+    if (sl < .16 || sl > 1.1 || h < 150 || rnd() > .55) continue;
+    const t = TONES[(rnd() * TONES.length) | 0]; add(px, pz, 4.2 + rnd() * 3, t.map(v => v / 255 * 1.12));
+  }
+  treeV = vao([[0, new Float32Array(P), 3], [1, new Float32Array(N), 3], [2, new Float32Array(I), 4, 1], [3, new Float32Array(Cc), 3, 1]]);
+  treeN = P.length / 3; treeI = I.length / 4;
+}
+
+// ------------------------------------------------------------------ camera
+const HOME = { x: -60, z: -80, head: 1.35, tilt: 1.12, dist: 2100 };
+const CAM = Object.assign({}, HOME);
+let goal = null, dirty = true;
+const SUN = norm([-.55, .78, -.35]);    // from the north-west, like the raster's hillshade
+const FOG = [.76, .81, .85];
+let VP, IVP, EYE;
+function camera() {
+  const W = cv.width, Hh = cv.height, ty = hAt(CAM.x, CAM.z);
+  const f = [Math.sin(CAM.head), 0, -Math.cos(CAM.head)], st = Math.sin(CAM.tilt), ct = Math.cos(CAM.tilt);
+  let e = [CAM.x - f[0] * CAM.dist * st, ty + CAM.dist * ct, CAM.z - f[2] * CAM.dist * st];
+  const gnd = hAt(e[0], e[2]) + 12; if (e[1] < gnd) e[1] = gnd;
+  const up = CAM.tilt < .02 ? f : [0, 1, 0];
+  const V = M4.look(e, [CAM.x, ty, CAM.z], up), Pm = M4.persp(.78, W / Hh, Math.max(1, CAM.dist * .004), 14000);
+  VP = M4.mul(Pm, V); IVP = M4.inv(VP); EYE = e;
+}
+function project(x, y, z) { const m = VP, w = m[3] * x + m[7] * y + m[11] * z + m[15]; if (w <= 0) return null;
+  return [((m[0] * x + m[4] * y + m[8] * z + m[12]) / w * .5 + .5) * innerWidth, (1 - ((m[1] * x + m[5] * y + m[9] * z + m[13]) / w * .5 + .5)) * innerHeight, w]; }
+const LIM = { d0: 90, d1: 5200, t1: 1.38 };
+function clampCam() { CAM.dist = clamp(CAM.dist, LIM.d0, LIM.d1); CAM.tilt = clamp(CAM.tilt, 0, LIM.t1);
+  CAM.x = clamp(CAM.x, X0 + 500, X1 - 500); CAM.z = clamp(CAM.z, Z0 + 500, Z1 - 500); }
+
+// ------------------------------------------------------------------ input (touch + mouse), with inertia
+const pts = new Map(); let last = null, vel = { x: 0, z: 0, h: 0 }, moved = 0;
+function mpp() { return 2 * CAM.dist * Math.tan(.39) / innerHeight; }
+function pan(dx, dy) { const s = mpp() * (1 + Math.sin(CAM.tilt) * .6), c = Math.cos(CAM.head), si = Math.sin(CAM.head);
+  const mx = (-dx * c - dy * si) * s, mz = (-dx * si + dy * c) * s; CAM.x += mx; CAM.z += mz; vel.x = mx; vel.z = mz; }
+cv.addEventListener('pointerdown', e => { cv.setPointerCapture(e.pointerId); pts.set(e.pointerId, { x: e.clientX, y: e.clientY, b: e.button, sh: e.shiftKey || e.ctrlKey || e.metaKey }); last = null; moved = 0; goal = null; vel = { x: 0, z: 0, h: 0 }; hideHint(); });
+cv.addEventListener('pointermove', e => {
+  const p = pts.get(e.pointerId); if (!p) return;
+  const dx = e.clientX - p.x, dy = e.clientY - p.y; moved += Math.abs(dx) + Math.abs(dy);
+  if (pts.size === 1) {
+    if (p.b === 2 || p.sh) { CAM.head -= dx * .006; CAM.tilt += dy * .005; vel.h = -dx * .006; }
+    else pan(dx, dy);
+    p.x = e.clientX; p.y = e.clientY;
+  } else if (pts.size === 2) {
+    p.x = e.clientX; p.y = e.clientY;
+    const [a, b] = [...pts.values()], cur = { d: Math.hypot(a.x - b.x, a.y - b.y), ang: Math.atan2(b.y - a.y, b.x - a.x), my: (a.y + b.y) / 2, mx: (a.x + b.x) / 2 };
+    if (last) {
+      CAM.dist *= last.d / cur.d;
+      let da = cur.ang - last.ang; if (da > Math.PI) da -= 2 * Math.PI; if (da < -Math.PI) da += 2 * Math.PI;
+      CAM.head -= da; vel.h = -da;
+      const pinch = Math.abs(cur.d - last.d), shift = cur.my - last.my;
+      if (pinch < 2.5 && Math.abs(da) < .01) CAM.tilt += shift * .006; else pan((cur.mx - last.mx), (cur.my - last.my));
+    }
+    last = cur;
+  }
+  clampCam(); dirty = true;
+});
+const up = e => { pts.delete(e.pointerId); last = null; };
+cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up);
+cv.addEventListener('contextmenu', e => e.preventDefault());
+cv.addEventListener('wheel', e => { e.preventDefault(); CAM.dist *= Math.exp(e.deltaY * .0012); goal = null; clampCam(); dirty = true; hideHint(); }, { passive: false });
+let lastTap = 0;
+cv.addEventListener('pointerup', e => { if (moved > 8) return; const t = performance.now(); if (t - lastTap < 300) flyTo({ dist: CAM.dist * .5 }); lastTap = t; closeSheet(); });
+document.addEventListener('gesturestart', e => e.preventDefault());
+
+function flyTo(g) { goal = Object.assign({}, CAM, g); vel = { x: 0, z: 0, h: 0 }; dirty = true; }
+document.getElementById('compass').onclick = () => flyTo({ head: 0 });
+document.getElementById('zin').onclick = () => flyTo({ dist: CAM.dist / 1.8 });
+document.getElementById('zout').onclick = () => flyTo({ dist: CAM.dist * 1.8 });
+const dimB = document.getElementById('dim');
+dimB.onclick = () => flyTo({ tilt: CAM.tilt > .2 ? 0 : 1.05 });
+document.getElementById('home').onclick = () => flyTo(HOME);
+
+// ------------------------------------------------------------------ labels + pins + warning logic
+const LAB = document.getElementById('labels'), LV = DATA.lv;
+const labels = DATA.places.filter(p => Math.abs(p.x) < 1800 && Math.abs(p.z) < 1900).map(p => { const d = document.createElement('div'); d.className = 'lb ' + p.t; d.textContent = p.n; LAB.appendChild(d); return { el: d, x: p.x, z: p.z, y: hAt(p.x, p.z) + 30 }; });
+{ const R = DATA.rivlo, a = R[(R.length * .55) | 0]; const d = document.createElement('div'); d.className = 'lb river'; d.textContent = '拒马河'; LAB.appendChild(d); labels.push({ el: d, x: a[0], z: a[1] + 30, y: a[2] + 2 }); }
+const obs = new Set(); let sel = null;
+const ruleLv = id => Math.min(...DATA.rules.filter(r => r.ids.includes(id)).map(r => r.lv));
+const pins = DATA.sig.filter(s => s.pin).map(s => {
+  const d = document.createElement('div'); d.className = 'pin'; d.innerHTML = `<div class="st"></div><div class="hd">${s.id}</div>`; LAB.appendChild(d);
+  d.addEventListener('pointerdown', e => { e.stopPropagation(); openSheet(s); });
+  return { s, el: d, x: s.pin[0], z: s.pin[1], y: hAt(s.pin[0], s.pin[1]) + 2 };
+});
+function level() { let lv = 0, why = null; for (const r of DATA.rules) if (r.ids.every(i => obs.has(i)) && r.lv > lv) { lv = r.lv; why = r; } return [lv, why]; }
+let curLv = 0;
+function refresh() {
+  const [lv, r] = level(), L = LV[lv];
+  const orb = document.getElementById('orb'); orb.textContent = L.k; orb.style.background = lv ? L.mid : 'rgba(255,255,255,.15)'; orb.style.color = lv > 1 ? 'var(--dark)' : '#fff';
+  document.getElementById('stxt').textContent = lv ? `${L.no} · ${L.name}` : L.name;
+  for (const p of pins) { const on = obs.has(p.s.id), c = LV[on ? ruleLv(p.s.id) : 0]; p.el.classList.toggle('on', on); p.el.querySelector('.hd').style.background = on ? c.mid : ''; p.el.classList.toggle('sel', sel === p.s); }
+  if (lv > curLv) toast(`升到${L.k}色 · ${L.name}<br><span style="opacity:.75;font-size:12px">${L.act}</span>`);
+  curLv = lv; dirty = true;
+}
+function glows() { const a = [], c = []; for (const p of pins) if (obs.has(p.s.id)) { const L = LV[ruleLv(p.s.id)], h = parseInt(L.mid.slice(1), 16);
+  a.push(p.x, p.z, 120, .75); c.push((h >> 16) / 255, ((h >> 8) & 255) / 255, (h & 255) / 255); } return [a, c]; }
+const sheet = document.getElementById('sheet'), seenB = document.getElementById('seen');
+function openSheet(s) { sel = s; hideHint(); const lv = ruleLv(s.id), L = LV[lv];
+  document.getElementById('sg').textContent = `${s.id} · ${s.g} ${DATA.grp[s.g]}${s.at ? ' · ' + s.at : ''}`;
+  document.getElementById('ss').textContent = s.s; document.getElementById('sf').textContent = '「' + s.f + '」';
+  document.getElementById('sw').textContent = s.why || ''; document.getElementById('sr').textContent = s.src ? '来源：' + s.src : '';
+  const sl = document.getElementById('sl'); const combo = !DATA.rules.some(r => r.lv === lv && r.ids.length === 1 && r.ids[0] === s.id);
+  sl.textContent = `→ ${L.k} · ${L.no}${combo ? ' · 需组合' : ''}`; sl.style.background = L.mid; sl.style.color = lv === 1 ? '#fff' : 'var(--dark)';
+  seenB.classList.toggle('on', obs.has(s.id)); seenB.textContent = obs.has(s.id) ? '取消' : '我看见了';
+  sheet.classList.add('open'); refresh();
+  const p = pins.find(q => q.s === s); if (p) flyTo({ x: p.x, z: p.z + (CAM.tilt > .2 ? 0 : 0), dist: Math.min(CAM.dist, 1100) });
+}
+function closeSheet() { sheet.classList.remove('open'); sel = null; refresh(); }
+document.getElementById('x').onclick = closeSheet;
+seenB.onclick = () => { if (!sel) return; obs.has(sel.id) ? obs.delete(sel.id) : obs.add(sel.id); openSheet(sel); };
+let tt; function toast(h) { const t = document.getElementById('toast'); t.innerHTML = h; t.classList.add('show'); clearTimeout(tt); tt = setTimeout(() => t.classList.remove('show'), 3200); }
+function hideHint() { document.getElementById('hint').style.opacity = 0; }
+
+function place() {
+  for (const l of labels) { const p = project(l.x, l.y, l.z); if (!p || p[2] > 6800) { l.el.style.display = 'none'; continue; }
+    l.el.style.display = ''; l.el.style.transform = `translate(${p[0]}px,${p[1]}px) translate(-50%,-50%)`; l.el.style.opacity = clamp(1.6 - p[2] / 4200, .35, 1); }
+  for (const q of pins) { const p = project(q.x, q.y, q.z); if (!p) { q.el.style.display = 'none'; continue; }
+    q.el.style.display = ''; const s = clamp(1.25 - p[2] / 5000, .7, 1.1); q.el.style.transform = `translate(${p[0]}px,${p[1]}px) scale(${s})`; q.el.style.zIndex = String(10000 - (p[2] | 0)); }
+  const cs = document.querySelector('#compass svg'); cs.style.transform = `rotate(${-CAM.head}rad)`;
+  dimB.textContent = CAM.tilt > .2 ? '2D' : '3D';
+}
+
+// ------------------------------------------------------------------ frame
+let tex, t0 = performance.now();
+function resize() { const d = Math.min(devicePixelRatio || 1, 2); cv.width = Math.round(innerWidth * d); cv.height = Math.round(innerHeight * d); dirty = true; }
+addEventListener('resize', resize);
+function frame() {
+  requestAnimationFrame(frame);
+  const t = (performance.now() - t0) / 1000;
+  if (goal) { const k = .14; let dh = goal.head - CAM.head; dh = Math.atan2(Math.sin(dh), Math.cos(dh));
+    CAM.x = lerp(CAM.x, goal.x, k); CAM.z = lerp(CAM.z, goal.z, k); CAM.dist = Math.exp(lerp(Math.log(CAM.dist), Math.log(goal.dist), k)); CAM.tilt = lerp(CAM.tilt, goal.tilt, k); CAM.head += dh * k;
+    if (Math.abs(CAM.dist - goal.dist) < 1 && Math.abs(dh) < .002 && Math.abs(CAM.tilt - goal.tilt) < .002 && Math.hypot(CAM.x - goal.x, CAM.z - goal.z) < .5) goal = null; clampCam(); dirty = true; }
+  else if (!pts.size && (Math.abs(vel.x) + Math.abs(vel.z) > .05 || Math.abs(vel.h) > .0005)) { CAM.x += vel.x; CAM.z += vel.z; CAM.head += vel.h; vel.x *= .9; vel.z *= .9; vel.h *= .9; clampCam(); dirty = true; }
+  const waterVisible = CAM.dist < 3000;
+  if (!dirty && !waterVisible) return;
+  dirty = false; camera(); draw(t); place();
+}
+function common(P) { gl.uniform3fv(P.u.uCam, EYE); gl.uniform3fv(P.u.uSun, SUN); gl.uniform3fv(P.u.uFog, FOG); gl.uniform4f(P.u.uExt, X0, Z0, X1, Z1); }
+function draw(t) {
+  gl.viewport(0, 0, cv.width, cv.height); gl.clearColor(...FOG, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT);
+  gl.enable(gl.DEPTH_TEST); gl.enable(gl.CULL_FACE); gl.cullFace(gl.BACK); gl.frontFace(gl.CCW); gl.disable(gl.BLEND);
+  gl.useProgram(TER.p); common(TER); gl.uniformMatrix4fv(TER.u.uVP, false, VP); gl.uniform1f(TER.u.uHalf, HALF);
+  const [ga, gc] = glows(); gl.uniform1i(TER.u.uNG, ga.length / 4); if (ga.length) { gl.uniform4fv(TER.u.uGlow, ga); gl.uniform3fv(TER.u.uGlowC, gc); }
+  gl.activeTexture(gl.TEXTURE0); gl.bindTexture(gl.TEXTURE_2D, tex); gl.uniform1i(TER.u.uTex, 0);
+  gl.disable(gl.CULL_FACE);
+  gl.bindVertexArray(terrainV); gl.drawElements(gl.TRIANGLES, terrainN, gl.UNSIGNED_INT, 0);
+  gl.useProgram(HOU.p); common(HOU); gl.uniformMatrix4fv(HOU.u.uVP, false, VP); gl.bindVertexArray(houseV); gl.drawArrays(gl.TRIANGLES, 0, houseN);
+  if (treeI) { gl.useProgram(TRE.p); common(TRE); gl.uniformMatrix4fv(TRE.u.uVP, false, VP); gl.bindVertexArray(treeV); gl.drawArraysInstanced(gl.TRIANGLES, 0, treeN, treeI); }
+  gl.useProgram(SKY.p); gl.uniformMatrix4fv(SKY.u.uIVP, false, IVP); gl.uniform3fv(SKY.u.uFog, FOG); gl.uniform3fv(SKY.u.uCam, EYE); gl.depthFunc(gl.LEQUAL); gl.bindVertexArray(null); gl.drawArrays(gl.TRIANGLES, 0, 3); gl.depthFunc(gl.LESS);
+  gl.enable(gl.BLEND); gl.blendFunc(gl.SRC_ALPHA, gl.ONE_MINUS_SRC_ALPHA); gl.depthMask(false);
+  gl.useProgram(WAT.p); common(WAT); gl.uniformMatrix4fv(WAT.u.uVP, false, VP); gl.uniform1f(WAT.u.uT, t); gl.bindVertexArray(waterV); gl.drawElements(gl.TRIANGLES, waterN, gl.UNSIGNED_INT, 0);
+  gl.depthMask(true); gl.disable(gl.BLEND);
+}
+
+// ------------------------------------------------------------------ boot
+const img = new Image();
+img.onload = () => {
+  try {
+    const c = document.createElement('canvas'); TW = c.width = c.height = 600; const x = c.getContext('2d', { willReadFrequently: true }); x.drawImage(img, 0, 0, TW, TW); texPix = x.getImageData(0, 0, TW, TW).data;
+    tex = gl.createTexture(); gl.bindTexture(gl.TEXTURE_2D, tex); gl.texImage2D(gl.TEXTURE_2D, 0, gl.RGB, gl.RGB, gl.UNSIGNED_BYTE, img); gl.generateMipmap(gl.TEXTURE_2D);
+    gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_MIN_FILTER, gl.LINEAR_MIPMAP_LINEAR); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_S, gl.CLAMP_TO_EDGE); gl.texParameteri(gl.TEXTURE_2D, gl.TEXTURE_WRAP_T, gl.CLAMP_TO_EDGE);
+    const an = gl.getExtension('EXT_texture_filter_anisotropic'); if (an) gl.texParameterf(gl.TEXTURE_2D, an.TEXTURE_MAX_ANISOTROPY_EXT, Math.min(8, gl.getParameter(an.MAX_TEXTURE_MAX_ANISOTROPY_EXT)));
+    buildTerrain(); buildHouses(); buildTrees();
+    resize(); refresh(); frame();
+    const L = document.getElementById('load'); L.style.opacity = 0; setTimeout(() => L.remove(), 700);
+    window.READY = { trees: treeI, houses: DATA.houses.length, water: waterN / 3 };
+  } catch (e) { document.getElementById('load').textContent = '出错：' + e.message; window.FAIL = String(e.stack || e); console.error(e); }
+};
+img.src = TEX;
+// test hooks
+window.view = (o) => { Object.assign(CAM, o); goal = null; clampCam(); dirty = true; };
+window.see = (ids) => { for (const i of ids) obs.add(i); refresh(); };
+window.open_ = (id) => openSheet(DATA.sig.find(s => s.id === id));
+</script>
+</body>
+</html>

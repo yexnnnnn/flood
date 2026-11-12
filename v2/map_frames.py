@@ -29,7 +29,7 @@ def frame(k, key, name, en, desc):
              f'<g id="局部放大"><rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" rx="18" fill="{PAPER}"/>'
              f'<g clip-path="url(#clipInset)"><g transform="translate({tx:.1f} {ty:.1f}) scale({k2})">{inset}</g></g>'
              f'<rect x="{ix}" y="{iy}" width="{iw}" height="{ih}" rx="18" fill="none" stroke="{INK}" stroke-opacity=".12"/></g>')
-    b.append(t(ix, iy + ih + 34, '村子 · 局部放大 ×2.3', 15, fam=MONO, ls=1.5, op=.5, id_='放大说明'))
+    b.append(t(ix, iy + ih + 34, '村子 · 局部放大 ×2.9', 15, fam=MONO, ls=1.5, op=.5, id_='放大说明'))
     row = ['<g id="样式切换">']
     for n, (kk, nm, *_r) in enumerate(S.STYLES):
         on = kk == key; x = 96 + n * 76

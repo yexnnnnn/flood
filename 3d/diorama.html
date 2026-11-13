@@ -81,6 +81,11 @@ float shadowAt(vec3 wp, vec3 n) {
   if (c.x < 0. || c.x > 1. || c.y < 0. || c.y > 1.) return 1.;
   float s = 0.; for (int i = 0; i < 8; i++) s += texture(uSM, vec3(c.xy + OFF[i] * uSMs * 1.7, c.z - .00012));
   return s / 8.; }
+vec3 m7(vec3 n, float k) {           // the M7 写实 hillshade: NW 0.55, W 0.25, N 0.2, sun 42° up, slopes x2.2
+  vec3 e = normalize(vec3(n.x * 2.2, n.y, n.z * 2.2));
+  float s = .55 * max(dot(e, vec3(-.526, .669, -.526)), 0.) + .25 * max(dot(e, vec3(-.732, .669, .129)), 0.) + .2 * max(dot(e, vec3(.129, .669, -.732)), 0.);
+  s = clamp((s - .669) * 2.4, -1., 1.) * k;
+  return s < 0. ? vec3(1. + s * .5, 1. + s * .5, 1. + s * .38) : vec3(1. + s * .16); }
 vec3 toLin(vec3 c) { return c * c * (c * .3 + .7); }
 vec3 tone(vec3 c) { c *= uExp; c = (c * (2.51 * c + .03)) / (c * (2.43 * c + .59) + .14); return pow(clamp(c, 0., 1.), vec3(1. / 2.2)); }
 vec3 shade(vec3 alb, vec3 n, vec3 wp, float ao, float wrap, out float sh) {
@@ -111,7 +116,7 @@ void main() {
   float ao = texture(uAO, uv).r * vAO, sh; vec3 alb;
   if (uReal == 1) {
     alb = toLin(texture(uG, uv).rgb);
-    float l = dot(alb, vec3(.3, .59, .11)); alb = mix(vec3(l), alb, .9) * .82;     // calmer than the raw paint
+    alb *= .86; alb = mix(vec3(dot(alb, vec3(.3, .55, .15))), alb, .8);      // M7: duller khaki, less yellow
     float g = vn2(vP.xz * .45) * .55 + vn2(vP.xz * 1.6) * .45; alb *= .9 + .2 * g;
   } else {
     vec3 mk = texture(uMK, uv).rgb;
@@ -121,7 +126,7 @@ void main() {
     alb *= 1. - .07 * l - .12 * l5;
     alb *= 1. - .05 * smoothstep(.35, .8, mk.g);           // roads and yards, just a breath darker
   }
-  vec3 c = shade(alb, n, vP, ao, 0., sh);
+  vec3 c = shade(alb, n, vP, ao, .25, sh) * m7(n, uReal == 1 ? 1.3 : .75);
   o = vec4(tone(c), 1.);
 }`);
 
@@ -169,17 +174,17 @@ void main() {
   float fd = clamp(length(uEye - vP) / 900., 0., 1.);                       // calmer with distance, no glitter
   vec3 n = normalize(vec3(g.x * .09 * (1. - .6 * fd), 1., g.y * .09 * (1. - .6 * fd))), V = normalize(uEye - vP);
   float sh = shadowAt(vP, vec3(0, 1, 0));
-  float d = clamp(vD / 2.2, 0., 1.);
-  vec3 shallow = uReal == 1 ? vec3(.30, .62, .52) : vec3(.62, .72, .76);
-  vec3 deep    = uReal == 1 ? vec3(.04, .25, .27) : vec3(.42, .55, .62);
+  float d = clamp(vD / (uReal == 1 ? 1.2 : 2.2), 0., 1.);
+  vec3 shallow = uReal == 1 ? toLin(vec3(.25, .45, .38)) : vec3(.62, .72, .76);
+  vec3 deep    = uReal == 1 ? toLin(vec3(.10, .30, .24)) : vec3(.42, .55, .62);
   vec3 body = mix(shallow, deep, smoothstep(0., 1., d));
   vec3 col = body * (mix(uGnd, uSky, .8) * .55 + uSunC * .32 * sh);
   float fr = .03 + .97 * pow(1. - max(dot(n, V), 0.), 5.);
-  vec3 sky = uSky * 1.25;
-  col = mix(col, sky, fr * .6);
-  vec3 H = normalize(uL + V); col += uSunC * (pow(max(dot(n, H), 0.), 90.) * .35 + pow(max(dot(n, H), 0.), 12.) * .03) * sh;
+  vec3 sky = uReal == 1 ? mix(uSky, body, .5) : uSky * 1.25;
+  col = mix(col, sky, fr * (uReal == 1 ? .35 : .6));
+  vec3 H = normalize(uL + V); col += uSunC * (pow(max(dot(n, H), 0.), 90.) * (uReal == 1 ? .045 : .35) + pow(max(dot(n, H), 0.), 12.) * (uReal == 1 ? .01 : .03)) * sh;   // 写实: M7 water is matte, the NW sun would glare at the SE camera
   float a = smoothstep(.0, .6, vD) * smoothstep(.02, .3, vM);
-  a = mix(a, a * .95, d) * (uReal == 1 ? .92 : .88);
+  a = mix(a, a * .95, d) * (uReal == 1 ? .98 : .88);
   o = vec4(tone(col) * a, a);
 }`);
 
@@ -218,9 +223,9 @@ const DEPI = prog(HEAD + `layout(location=0) in vec3 aP; layout(location=2) in v
 void main() { float c = cos(iS.y), s = sin(iS.y); vec3 p = aP; p.xz = mat2(c, -s, s, c) * p.xz; p.y *= iS.x; gl_Position = uVP * vec4(iP.xyz + p * iP.w, 1.); }`, HEAD + `void main() {}`);
 
 // ------------------------------------------------------------------ scene
-const SUN = norm([-.64, .50, .58]);                     // late-morning sun from the south-west, about 30° up
+const SUN = norm([-.526, .669, -.526]);                 // the M7 sun: north-west, 42° up (cast shadows fall to the south-east)
 const LOOKS = REAL
-  ? { sun: [2.05, 1.92, 1.70], sky: [.40, .50, .64], gnd: [.20, .22, .14], exp: .92 }
+  ? { sun: [2.10, 1.98, 1.78], sky: [.36, .42, .50], gnd: [.20, .20, .15], exp: .95 }
   : { sun: [1.80, 1.74, 1.64], sky: [.40, .43, .49], gnd: [.26, .25, .24], exp: .92 };
 let MK = null, MW = 0;                                  // mask pixels: R water, G obstacle, B forest
 const mAt = (x, z, c) => { const i = clamp(Math.floor((x + HALF) / (2 * HALF) * MW), 0, MW - 1), j = clamp(Math.floor((z + HALF) / (2 * HALF) * MW), 0, MW - 1); return MK[(j * MW + i) * 4 + c] / 255; };
@@ -346,16 +351,20 @@ function crownGeometry() {
   return [pos, nrm, new Uint32Array(F.flat())];
 }
 
+function m7At(x, z, k) {
+  const d = 4, n = norm([(hAt(x - d, z) - hAt(x + d, z)) * 2.2, 2 * d, (hAt(x, z - d) - hAt(x, z + d)) * 2.2]);
+  let s = .55 * Math.max(0, n[0] * -.526 + n[1] * .669 + n[2] * -.526) + .25 * Math.max(0, n[0] * -.732 + n[1] * .669 + n[2] * .129) + .2 * Math.max(0, n[0] * .129 + n[1] * .669 + n[2] * -.732);
+  s = clamp((s - .669) * 2.4, -1, 1) * k; return s < 0 ? [1 + s * .5, 1 + s * .5, 1 + s * .38] : [1 + s * .16, 1 + s * .16, 1 + s * .16]; }
 function buildTrees(aoCtx, aoK) {
   const [pos, nrm, idx] = crownGeometry();
   const I = [], Cc = [], Sx = [];
-  const TF = REAL ? [[.13, .27, .09], [.16, .32, .10], [.20, .37, .12], [.24, .41, .13], [.11, .23, .08], [.18, .30, .09]] : [[.80, .84, .76]];
-  const TO = REAL ? [[.22, .40, .12], [.28, .46, .14], [.19, .36, .11], [.32, .49, .15]] : [[.74, .80, .72]];
+  const TF = REAL ? [[.165, .267, .149], [.204, .314, .173], [.251, .361, .196], [.141, .227, .133], [.227, .290, .157]] : [[.80, .84, .76]];
+  const TO = REAL ? [[.251, .361, .196], [.306, .408, .220], [.361, .447, .235], [.204, .314, .173]] : [[.74, .80, .72]];
   const blob = document.createElement('canvas'); blob.width = blob.height = 64; { const x = blob.getContext('2d'), g = x.createRadialGradient(32, 32, 0, 32, 32, 32);
     g.addColorStop(0, 'rgba(0,0,0,.55)'); g.addColorStop(.55, 'rgba(0,0,0,.35)'); g.addColorStop(1, 'rgba(0,0,0,0)'); x.fillStyle = g; x.fillRect(0, 0, 64, 64); }
   const add = (x, z, r, c, forest) => {
     const g = hAt(x, z), sq = .78 + rnd() * .2, y = g + r * sq * (forest ? .55 : .95);
-    I.push(x, y, z, r); Cc.push(c[0], c[1], c[2]); Sx.push(sq, rnd() * 6.283);
+    const f = m7At(x, z, REAL ? 1 : .75); I.push(x, y, z, r); Cc.push(c[0] * f[0], c[1] * f[1], c[2] * f[2]); Sx.push(sq, rnd() * 6.283);
     const R = r * (forest ? 1.25 : 1.6) * aoK; aoCtx.drawImage(blob, (x + HALF) * aoK - R, (z + HALF) * aoK - R, 2 * R, 2 * R);
   };
   const sp = PHONE ? 9.5 : 7;

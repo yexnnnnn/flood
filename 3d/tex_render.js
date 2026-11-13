@@ -26,7 +26,7 @@ const [, VIL] = maskOf(x => { x.filter = 'blur(14px)'; x.fillStyle = '#fff';
 const box = (x, h, ex, ey, fy) => { x.save(); x.translate(h.x, h.y); x.rotate(h.a); x.fillRect(-h.w / 2 - ex, -h.d / 2 - ey, h.w + 2 * ex, h.d + 2 * ey + fy); x.restore(); };
 const Hs = G.houses.map(([x, y, , w, d, a]) => ({ x, y, w, d, a: a * Math.PI / 180, j: (rnd() - .5) * 10 }));
 const [, OB] = maskOf(x => { x.strokeStyle = x.fillStyle = '#fff'; x.lineCap = 'round';
-  const W = { main: 3.2, lane: 2.0, track: .9, path: .6 }; for (const r of G.roads) { x.lineWidth = (W[r.k] || .6) + 1.0; x.stroke(P(r.d)); }
+  const W = { main: 4.2, lane: 3.0, track: .7, path: 0 }; for (const r of G.roads) { const w = W[r.k] ?? 0; if (!w) continue; x.lineWidth = w; x.stroke(P(r.d)); }   // tracks barely part the forest
   for (const h of Hs) box(x, h, .6, .5, h.d * 1.3); });
 
 // water channel inside the riverbed, plus mapped water bodies (alpha = wet)
@@ -51,19 +51,20 @@ for (let y = 0; y < S; y++) for (let x = 0; x < S; x++) {
   let fw = Math.max(sst(.11, .24, sl + (n1 - .5) * .16), sst(170, 240, e + (n1 - .5) * 60) * .9);
   fw *= (1 - bed) * (1 - vil * .9);
   FOR[p] = fw;
-  const meadow = mix(mix([128, 166, 64], [150, 176, 80], n2 * .8 + n3 * .2), [104, 150, 56], sst(.45, .68, n1) * .7);
-  const scrub = mix([98, 136, 58], [124, 150, 70], n2);
-  const floor = mix([38, 76, 34], [56, 94, 42], n3);
+  // M7 写实 palette: dry khaki meadow, olive scrub, dark forest floor
+  const meadow = mix(mix([134, 124, 84], [158, 140, 100], n2 * .8 + n3 * .2), [102, 116, 68], sst(.45, .68, n1) * .65);
+  const scrub = mix([92, 102, 62], [128, 120, 84], n2);
+  const floor = mix([44, 64, 36], [64, 84, 46], n3);
   let c = mix(meadow, scrub, sst(.06, .14, sl));
   c = mix(c, floor, fw);
-  c = mix(c, mix([178, 172, 154], [164, 160, 140], n3), vil * .7);
+  c = mix(c, mix([166, 160, 146], [146, 142, 130], n3), vil * .8);
   if (bed > 0) {
-    let gr = mix([234, 222, 192], [216, 202, 170], n2 * .7 + n3 * .3);
-    gr = mix(gr, [244, 236, 214], sst(.55, .8, fbm(x / 7, y / 40)) * .4);
-    gr = mix(gr, [128, 164, 72], sst(.62, .74, n1 + n2 * .25) * .85);
+    let gr = mix([206, 196, 176], [176, 166, 146], n2 * .7 + n3 * .3);
+    gr = mix(gr, [222, 214, 196], sst(.55, .8, fbm(x / 7, y / 40)) * .4);
+    gr = mix(gr, [112, 124, 74], sst(.62, .74, n1 + n2 * .25) * .85);
     c = mix(c, gr, bed);
   }
-  if (wa > 0) c = mix(c, mix([150, 156, 120], [104, 120, 96], sst(.4, 1, wa)), wa);      // river bed under the water sheet
+  if (wa > 0) c = mix(c, mix([120, 130, 104], [70, 92, 76], sst(.4, 1, wa)), wa);      // river bed under the water sheet
   O[q] = c[0]; O[q + 1] = c[1]; O[q + 2] = c[2]; O[q + 3] = 255;
   FLD[q + 3] = 255 * (1 - fw) * (1 - bed) * (1 - vil) * sst(.12, .06, sl) * sst(230, 190, e) * sst(.42, .5, fbm(x / 260 + 7, y / 260)) * .92;
 }
@@ -72,7 +73,7 @@ cx.putImageData(im, 0, 0);
 // fields: plots on a rotated grid, masked to flat open ground; mowing-stripe furrows
 {
   const [fc, fx] = mk(); const ang = -0.52;
-  const pal = [[112, 160, 58], [98, 148, 52], [136, 172, 70], [152, 180, 84], [196, 184, 104], [178, 170, 92], [164, 190, 98], [120, 150, 60]];
+  const pal = [[96, 118, 62], [84, 108, 56], [150, 136, 98], [164, 148, 108], [110, 124, 70], [138, 128, 90], [78, 100, 52]];
   fx.translate(S / 2, S / 2); fx.rotate(ang); fx.translate(-S, -S);
   for (let u = 0; u < 2 * S; ) {
     const w = 14 + rnd() * 26;
@@ -92,17 +93,22 @@ cx.putImageData(im, 0, 0);
 
 // gullies, roads (paths and tracks kept faint), courtyards
 cx.setTransform(K, 0, 0, K, 0, 0); cx.lineCap = cx.lineJoin = 'round';
-for (const d of G.gully) { const g = P(d); cx.strokeStyle = 'rgb(222,214,194)'; cx.lineWidth = 2.0; cx.stroke(g); }
-const RS = { main: ['rgb(232,228,218)', 3.0], lane: ['rgb(216,210,192)', 1.7], track: ['rgba(214,204,176,.55)', .7], path: ['rgba(214,204,176,.35)', .4] };
-for (const k of ['path', 'track', 'lane', 'main']) for (const r of G.roads) if (r.k === k) {
-  const [c, w] = RS[k] || RS.path, g = P(r.d);
-  if (k === 'main' || k === 'lane') { cx.strokeStyle = 'rgba(70,80,50,.22)'; cx.lineWidth = w + .6; cx.stroke(g); }
-  cx.strokeStyle = c; cx.lineWidth = w; cx.stroke(g); }
-for (const h of Hs) { const j = h.j; cx.fillStyle = `rgb(${190 + j},${184 + j},${170 + j})`; box(cx, h, .35, .25, h.d * 1.3); }
+for (const d of G.gully) { const g = P(d); cx.strokeStyle = 'rgb(200,194,178)'; cx.lineWidth = 2.0; cx.stroke(g); }
+// roads go on their own layer, then fade with slope: thin and faint on the hillsides, readable on the valley floor
+{ const [rc, rx] = mk(); rx.setTransform(K, 0, 0, K, 0, 0); rx.lineCap = rx.lineJoin = 'round';
+  const RS = { main: ['rgb(190,186,176)', 2.3], lane: ['rgb(178,172,158)', 1.2], track: ['rgba(170,158,130,.5)', .45], path: ['rgba(170,158,130,.3)', .3] };
+  for (const k of ['path', 'track', 'lane', 'main']) for (const r of G.roads) if (r.k === k) {
+    const [c, w] = RS[k] || RS.path, g = P(r.d); rx.strokeStyle = c; rx.lineWidth = w; rx.stroke(g); }
+  const R = rx.getImageData(0, 0, S, S).data, d = cx.getImageData(0, 0, S, S), o = d.data;
+  for (let p = 0; p < N; p++) { const q = p * 4; if (!R[q + 3]) continue;
+    const sl = A[q + 1] / 255, a = R[q + 3] / 255 * (1 - .72 * sst(.06, .17, sl)) * (1 - .35 * FOR[p]);
+    for (let c = 0; c < 3; c++) o[q + c] += (R[q + c] - o[q + c]) * a; }
+  cx.putImageData(d, 0, 0); }
+for (const h of Hs) { const j = h.j; cx.fillStyle = `rgb(${156 + j},${152 + j},${142 + j})`; box(cx, h, .35, .25, h.d * 1.3); }
 cx.setTransform(1, 0, 0, 1, 0, 0);
 { const d = cx.getImageData(0, 0, S, S), o = d.data;                      // grade: +8 % saturation
   for (let p = 0; p < N; p++) { const q = p * 4, l = .3 * o[q] + .59 * o[q + 1] + .11 * o[q + 2];
-    for (let c = 0; c < 3; c++) o[q + c] = l + (o[q + c] - l) * 1.08; }
+    for (let c = 0; c < 3; c++) o[q + c] = ((l + (o[q + c] - l) * 1.12) - 118) * 1.06 + 118; }
   cx.putImageData(d, 0, 0); }
 
 window.MASK = () => {

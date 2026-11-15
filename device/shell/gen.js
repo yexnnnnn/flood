@@ -57,17 +57,23 @@ function arcs(x, y, R, w, n, bw, a0) {
 
 // smooth pebble: superellipse-ish plan outline with low harmonics, rounder top / flatter bottom profile.
 // The implicit F is turned into a distance by dividing by its (numerical) gradient.
-let PB = { cx: 0, a: 45, b: 32, zc: 7, tTop: 16.5, tBot: 14, p: 2.5, qTop: 2.1, qBot: 2.6 };
+let PB = { cx: 0, a: 45, b: 31, zc: 7, tTop: 17, tBot: 13.5, p: 2.4, qTop: 2.1, qBot: 1.9, bend: .07, zb: -5.8, flatR: 3 };
 function pebbleF(x, y, z) {
-  const u = x - PB.cx, th = atan2(y / PB.b, u / PB.a);
-  const wob = 1 + .04 * cos(2 * th + 1.1) + .03 * cos(3 * th - .5) - .035 * cos(th) + .012 * sin(5 * th + .3);     // fuller at the button end (-x)
-  const rho = hypot(u / PB.a, y / PB.b) / wob, dz = z - PB.zc + .9 * (u / PB.a) - .7 * (y / PB.b);
-  const T = dz > 0 ? PB.tTop * (1 - .07 * (u / PB.a)) : PB.tBot, q = dz > 0 ? PB.qTop : PB.qBot;
+  const u = x - PB.cx, s = u / PB.a, yb = y + PB.bend * PB.b * (s * s - .4);            // bean: fingers wrap the concave side (-y)
+  const th = atan2(yb / PB.b, s);
+  const wob = 1 + .035 * cos(2 * th + 1.1) + .025 * cos(3 * th - .5) - .03 * cos(th) + .01 * sin(5 * th + .3);
+  const rho = hypot(s, yb / PB.b) / wob;
+  const dz = z - PB.zc + .6 * s;                                                          // crest a little toward the button end
+  const T = dz > 0 ? PB.tTop * (1 - .06 * s) : PB.tBot, q = dz > 0 ? PB.qTop : PB.qBot;
   return (rho ** PB.p + abs(dz / T) ** q) ** (1 / PB.p) - 1; }
 function pebble(x, y, z) {
   const f = pebbleF(x, y, z), e = .05;
   const gx = (pebbleF(x + e, y, z) - pebbleF(x - e, y, z)) / (2 * e), gy = (pebbleF(x, y + e, z) - pebbleF(x, y - e, z)) / (2 * e), gz = (pebbleF(x, y, z + e) - pebbleF(x, y, z - e)) / (2 * e);
   return f / max(hypot(gx, gy, gz), 1e-4); }
+// a crescent of n holes on radius R facing +x, largest in the middle, spanning +-span rad
+function crescent(u, v, R, r, n, span) { let d = 1e9;
+  for (let k = 0; k < n; k++) { const t = n > 1 ? k / (n - 1) * 2 - 1 : 0, a = t * span, rr = r * (.62 + .38 * cos(t * PI / 2));
+    d = min(d, hypot(u - R * cos(a), v - R * sin(a)) - rr); } return d; }
 // round through-holes on a hex grid (spacing s, radius r) inside radius R
 function dots(u, v, s, r, R) { const h = s * sqrt(3) / 2; let d = 1e9;
   const j0 = Math.round(v / h); for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i0 = Math.round((u - off) / s);
@@ -87,16 +93,16 @@ const cavCore = (x, y, z) => min(box(x, y, z, AX, 0, TOP / 2, AH, AH, TOP / 2, 1
 // capSlots(x,y) sound/light slots through the cap (local coords around the button axis), hole: lanyard hole.
 const ZB = -2.4;                                          // flat bottom (2.4 mm floor)
 const DESIGNS = {
-  // A · 河卵石: one smooth discoidal river stone (Zingg "disc": short/long ≈ .32, mid/long ≈ .70), slightly thicker over
-  // the button end, flatter underneath, outline nudged off a perfect oval. No surface lines except the seam and the button.
+  // A · 河卵石: a palm stone. Bean-shaped plan (fingers curl round the concave side), crest under the palm, convex
+  // underside that only sits on a small flat, a holed-stone lanyard hole at the round end. Button: flush, glows through.
   A: {
-    name: '河卵石 Pebble', color: [.80, .79, .76], cap: [.84, .83, .80],
-    zs: 7,                                               // seam on the stone's widest line
-    outer(x, y, z) { return smax(pebble(x, y, z), ZB - z, 4); },
-    capTop(x, y, z, d) {                                   // flush, with a barely-there thumb dish
-      const dish = 60 - hypot(x - AX, y, z - (this._top + 60 - .7));
-      return smax(max(d, dish), hypot(x - AX, y) - CAP_R, .6); },
-    capSlots: (u, v) => dots(u, v, 2.5, .6, 6.4),       // small speaker holes instead of slots
+    name: '河卵石 Pebble', color: [.80, .79, .76], cap: [.86, .85, .82], zs: 7, hollow: true,
+    outer(x, y, z) { return smax(pebble(x, y, z), PB.zb - z, PB.flatR); },
+    hole: { x: -38.5, y: 0, r: 2.3, round: 1.6 },
+    capTop(x, y, z, d) {                                   // flush with the stone, a soft thumb dish
+      const dish = 70 - hypot(x - AX + 1, y, z - (this._top + 70 - .9));
+      return smax(max(d, dish), hypot(x - AX, y) - CAP_R, .9); },
+    capSlots: (u, v) => crescent(u, v, 9.2, .62, 7, .9),  // one arc of fine holes on the far side from the thumb
   },
   // B · 竹节: a section of bamboo (竹报平安, "bamboo brings word of safety"), nodes as ridges, flat underside.
   B: {
@@ -139,21 +145,26 @@ const DESIGNS = {
 // ============================================================ parts
 function parts(D) {
   const outer = (x, y, z) => { let d = D.outer(x, y, z);
-    if (D.hole) d = smax(d, -(cylZ(x, y, D.hole.x, D.hole.y, D.hole.r)), .8); return d; };
+    if (D.hole) d = smax(d, -(cylZ(x, y, D.hole.x, D.hole.y, D.hole.r)), D.hole.round || .8); return d; };
   // top height of the body over the button axis (for the dish)
   let t = 40; while (D.outer(AX, 0, t) > 0 && t > 0) t -= .05; D._top = t;
+  if (D.hollow) { let lo = 99; for (let a = 0; a < 2 * PI; a += .2) for (const r of [0, 4, 8, CAP_R - 1.5]) { let z = 40;
+      const x = AX + r * cos(a), y = r * sin(a); while (D.capTop.call(D, x, y, z, D.outer(x, y, z)) > 0 && z > 0) z -= .05; lo = min(lo, z); }
+    D._ceil = lo - 1.2; }
   const tongue = (x, y, z) => max(max(-cavCore(x, y, z), cavCore(x, y, z) - 1.1), slab(z, ZS - .01, ZS + 2), outer(x, y, z) + 1.5);
   const rabbet = (x, y, z) => max(cavCore(x, y, z) - 1.1 - PRINT.tol / 2 - .05, z - (ZS + 2 + .2), outer(x, y, z) + 1.5 - PRINT.tol / 2 - .05);
   const base = (x, y, z) => max(min(smax(outer(x, y, z), z - ZS, .7), tongue(x, y, z)), -cav(x, y, z));   // .7 mm round-over hides the seam
   const lid = (x, y, z) => { const d = outer(x, y, z); let v = max(smax(d, ZS - z, .7), -cav(x, y, z), -rabbet(x, y, z));
     v = max(v, -max(cylZ(x, y, AX, 0, PK_R), slab(z, PK_Z0, PK_Z1)));            // flange pocket
-    v = max(v, -max(cylZ(x, y, AX, 0, HOLE_R), PK_Z0 - z));                        // button hole
+    v = smax(v, -max(cylZ(x, y, AX, 0, HOLE_R), PK_Z0 - z), D.hollow ? .5 : 0.001);   // button hole (soft lip)
     if (D.lidDeco) v = max(v, -D.lidDeco(x, y, z, d));
     return v; };
   const cap = (x, y, z) => { const d = outer(x, y, z);
     let v = max(cylZ(x, y, AX, 0, CAP_R), z > FL_Z1 ? D.capTop(x, y, z, d) : -1, FL_Z0 - z);
     v = min(v, max(cylZ(x, y, AX, 0, FL_R), slab(z, FL_Z0, FL_Z1)));
-    return max(v, -D.capSlots(x - AX, y)); };
+    v = max(v, -D.capSlots(x - AX, y));
+    if (D.hollow) v = max(v, -max(cylZ(x, y, AX, 0, CAP_R - 1.5), z - D._ceil));   // hollow: ~1.2 mm skin lets the LED glow through
+    return v; };
   return { outer, base, lid, cap };
 }
 
@@ -295,7 +306,7 @@ for (const id of ids) {
   const D = DESIGNS[id]; ZS = D.zs || 9; const P = parts(D), t0 = Date.now();
   const w = wallReport(D, P); const at = w.at; delete w.at; console.log(id, D.name, 'walls mm', JSON.stringify(Object.fromEntries(Object.entries(w).map(([k, v]) => [k, +v.toFixed(2)]))), 'at', JSON.stringify(at));
   if (CHECK_ONLY) continue;
-  const BB = [-52, -38, ZB - .5, 52, 38, 34];
+  const BB = [-52, -38, -9, 52, 38, 34];
   const out = {}, info = {};
   for (const [k, f, bb] of [['base', P.base, [BB[0], BB[1], BB[2], BB[3], BB[4], ZS + 2.5]], ['lid', P.lid, [BB[0], BB[1], ZS - .5, BB[3], BB[4], BB[5]]],
                             ['cap', P.cap, [AX - FL_R - 1, -FL_R - 1, FL_Z0 - .5, AX + FL_R + 1, FL_R + 1, BB[5]]]]) {

@@ -1,0 +1,119 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no">
+<title>观察器外壳 · 3 个版本</title>
+<style>
+html, body { margin:0; height:100%; overflow:hidden; background:#efeeea; font:14px/1.4 -apple-system, "PingFang SC", "Helvetica Neue", sans-serif; color:#2b2b2b; }
+canvas { position:fixed; inset:0; width:100%; height:100%; touch-action:none; cursor:grab; }
+.bar { position:fixed; left:50%; transform:translateX(-50%); display:flex; gap:6px; padding:6px; border-radius:14px; background:rgba(255,255,255,.72); backdrop-filter:blur(12px); box-shadow:0 2px 14px rgba(0,0,0,.08); }
+#designs { top:16px; } #modes { bottom:18px; }
+button { border:0; background:none; padding:8px 14px; border-radius:10px; font:inherit; color:#555; cursor:pointer; }
+button.on { background:#2b2b2b; color:#fff; }
+#info { position:fixed; left:18px; top:72px; max-width:290px; font-size:13px; color:#555; }
+#info b { display:block; font-size:18px; color:#222; margin-bottom:4px; }
+</style>
+</head>
+<body>
+<canvas id="c"></canvas>
+<div class="bar" id="designs"></div>
+<div class="bar" id="modes"><button data-m="0" class="on">组装</button><button data-m="1">拆开</button><button data-m="2">剖面</button></div>
+<div id="info"></div>
+<script>
+'use strict';
+const NOTES = {
+  A: ['A · 河卵石', '握在手心。整颗石头的顶面是按键，拇指窝告诉你按哪里；一圈圈水波纹是装饰也是手感。尾部的孔像天然带孔的石头，穿绳。约 81 × 53 × 27 mm。'],
+  B: ['B · 竹节', '竹报平安。像一小节竹子，竹节是凸起的箍，按键在竹身上，出声的缝顺着竹纤维。底部削平，放桌上不滚。约 73 × 41 × 31 mm。'],
+  C: ['C · 平安牌', '挂在脖子上的扁牌，像玉牌。圆形按键微微凸起，像一枚平安扣，摸得到。一圈细边框，顶上穿绳孔。约 77 × 42 × 24 mm。'],
+};
+const cv = document.getElementById('c'), gl = cv.getContext('webgl2', { antialias: true });
+const BASE = new URL('out/view/', location.href).href;
+let meta, cur = 'A', mode = 0, modeT = 0, M = {};
+// ---------------------------------------------------------------- GL
+function sh(t, s) { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o); if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw gl.getShaderInfoLog(o); return o; }
+const prog = gl.createProgram();
+gl.attachShader(prog, sh(gl.VERTEX_SHADER, `#version 300 es
+layout(location=0) in vec3 aP; layout(location=1) in vec3 aN; uniform mat4 uVP; uniform vec3 uOff; out vec3 vW; out vec3 vN;
+void main() { vec3 p = aP + uOff; vW = vec3(p.x, p.z, -p.y); vN = vec3(aN.x, aN.z, -aN.y); gl_Position = uVP * vec4(vW, 1.); }`));
+gl.attachShader(prog, sh(gl.FRAGMENT_SHADER, `#version 300 es
+precision highp float; in vec3 vW; in vec3 vN; out vec4 o; uniform vec3 uC, uEye; uniform float uCut, uGlow;
+void main() {
+  if (uCut > .5 && vW.z > 0.) discard;
+  vec3 n = normalize(vN), V = normalize(uEye - vW);
+  if (!gl_FrontFacing) { o = vec4(uC * .55 + .03, 1.); if (uCut > .5) o.rgb = uC * .72; return; }   // cut face
+  vec3 L = normalize(vec3(-.45, .85, .35));
+  float d = max(dot(n, L), 0.), w = dot(n, L) * .5 + .5, sky = n.y * .5 + .5;
+  vec3 c = uC * (.30 + .30 * sky + .62 * d) + uC * .10 * w;
+  float rim = pow(1. - max(dot(n, V), 0.), 3.); c += vec3(.04) * rim;                 // soft plastic sheen
+  vec3 H = normalize(L + V); c += vec3(.07) * pow(max(dot(n, H), 0.), 40.);
+  c += uGlow * vec3(.25, .85, .45) * .55;
+  o = vec4(pow(c, vec3(.92)), 1.); }`));
+gl.linkProgram(prog); const U = n => gl.getUniformLocation(prog, n);
+function upload(pos, idx) {
+  const n = new Float32Array(pos.length);
+  for (let i = 0; i < idx.length; i += 3) { const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+    const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2], vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
+    const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; for (const k of [a, b, c]) { n[k] += nx; n[k + 1] += ny; n[k + 2] += nz; } }
+  const v = gl.createVertexArray(); gl.bindVertexArray(v);
+  for (const [l, d] of [[0, pos], [1, n]]) { const bf = gl.createBuffer(); gl.bindBuffer(gl.ARRAY_BUFFER, bf); gl.bufferData(gl.ARRAY_BUFFER, d, gl.STATIC_DRAW); gl.enableVertexAttribArray(l); gl.vertexAttribPointer(l, 3, gl.FLOAT, false, 0, 0); }
+  const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
+  gl.bindVertexArray(null); return { v, n: idx.length };
+}
+function fromBin(buf) { const h = new Uint32Array(buf, 0, 2), nv = h[0], nt = h[1], q = new Int16Array(buf, 8, nv * 3), off = 8 + Math.ceil(nv * 6 / 4) * 4;
+  const p = new Float32Array(nv * 3); for (let i = 0; i < p.length; i++) p[i] = q[i] / 100; return upload(p, new Uint32Array(buf, off, nt * 3)); }
+function boxMesh(x0, y0, z0, x1, y1, z1) { const p = [], t = [];
+  const F = [[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],[[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]],[[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]],
+             [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],[[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0]]];
+  for (const f of F) { const b = p.length / 3; f.forEach(v => p.push(...v)); t.push(b, b + 1, b + 2, b, b + 2, b + 3); }
+  return { p: new Float32Array(p), t: new Uint32Array(t) }; }
+// ---------------------------------------------------------------- camera
+const cam = { yaw: -.75, pitch: .55, dist: 190 }; let drag = null;
+cv.addEventListener('pointerdown', e => { drag = [e.clientX, e.clientY]; cv.setPointerCapture(e.pointerId); cv.style.cursor = 'grabbing'; });
+cv.addEventListener('pointermove', e => { if (!drag) return; cam.yaw -= (e.clientX - drag[0]) * .008; cam.pitch = Math.max(-1.3, Math.min(1.45, cam.pitch + (e.clientY - drag[1]) * .008)); drag = [e.clientX, e.clientY]; });
+addEventListener('pointerup', () => { drag = null; cv.style.cursor = 'grab'; });
+cv.addEventListener('wheel', e => { e.preventDefault(); cam.dist = Math.max(70, Math.min(420, cam.dist * Math.exp(e.deltaY * .001))); }, { passive: false });
+window.view = o => Object.assign(cam, o);
+function mat(eye, tg) {
+  const f = norm(sub(tg, eye)), s = norm(cross(f, [0, 1, 0])), u = cross(s, f), asp = cv.width / cv.height, fy = 1 / Math.tan(.32), n = 5, fa = 1500;
+  const P = [fy / asp, 0, 0, 0, 0, fy, 0, 0, 0, 0, (fa + n) / (n - fa), -1, 0, 0, 2 * fa * n / (n - fa), 0];
+  const Vw = [s[0], u[0], -f[0], 0, s[1], u[1], -f[1], 0, s[2], u[2], -f[2], 0, -dot(s, eye), -dot(u, eye), dot(f, eye), 1];
+  const r = new Float32Array(16); for (let i = 0; i < 4; i++) for (let j = 0; j < 4; j++) { let a = 0; for (let k = 0; k < 4; k++) a += P[k * 4 + j] * Vw[i * 4 + k]; r[i * 4 + j] = a; } return r; }
+const sub = (a, b) => [a[0] - b[0], a[1] - b[1], a[2] - b[2]], dot = (a, b) => a[0] * b[0] + a[1] * b[1] + a[2] * b[2];
+const cross = (a, b) => [a[1] * b[2] - a[2] * b[1], a[2] * b[0] - a[0] * b[2], a[0] * b[1] - a[1] * b[0]], norm = a => { const l = Math.hypot(...a); return a.map(v => v / l); };
+// ---------------------------------------------------------------- ui
+function ui() {
+  const d = document.getElementById('designs'); d.innerHTML = '';
+  for (const id of Object.keys(meta.designs)) { const b = document.createElement('button'); b.textContent = NOTES[id][0]; b.className = id === cur ? 'on' : ''; b.onclick = () => { cur = id; ui(); }; d.appendChild(b); }
+  document.getElementById('info').innerHTML = `<b>${NOTES[cur][0]}</b>${NOTES[cur][1]}`;
+  document.querySelectorAll('#modes button').forEach(b => { b.className = +b.dataset.m === mode ? 'on' : ''; b.onclick = () => { mode = +b.dataset.m; ui(); }; });
+}
+window.setDesign = (id, m) => { cur = id; if (m !== undefined) mode = m; modeT = mode === 1 ? 1 : 0; ui(); };
+// ---------------------------------------------------------------- load + draw
+async function boot() {
+  const E = window.EMBED; const get = async n => E ? Uint8Array.from(atob(E[n]), c => c.charCodeAt(0)).buffer : (await fetch(BASE + n)).arrayBuffer();
+  meta = E ? JSON.parse(E['meta.json']) : await (await fetch(BASE + 'meta.json')).json();
+  for (const id of Object.keys(meta.designs)) for (const k of ['base', 'lid', 'cap']) M[id + k] = fromBin(await get(`${id}_${k}.bin`));
+  const hw = meta.hw, X0 = -(hw.atom + hw.batL) / 2;
+  const a = boxMesh(X0, -hw.atom / 2, 0, X0 + hw.atom, hw.atom / 2, hw.atomH), b = boxMesh(X0 + hw.atom, -hw.batW / 2, 0, X0 + hw.atom + hw.batL, hw.batW / 2, hw.batH);
+  M.atom = upload(a.p, a.t); M.bat = upload(b.p, b.t);
+  ui(); window.READY = true; requestAnimationFrame(frame);
+}
+function frame() {
+  const W = Math.round(innerWidth * Math.min(2, devicePixelRatio)), H = Math.round(innerHeight * Math.min(2, devicePixelRatio)); if (cv.width !== W || cv.height !== H) { cv.width = W; cv.height = H; }
+  modeT += ((mode === 1 ? 1 : 0) - modeT) * .12; if (!drag && mode !== 2) cam.yaw += .0012;
+  const tg = [0, 10 + 12 * modeT, 0], cp = Math.cos(cam.pitch), eye = [tg[0] + cam.dist * cp * Math.sin(cam.yaw), tg[1] + cam.dist * Math.sin(cam.pitch), tg[2] + cam.dist * cp * Math.cos(cam.yaw)];
+  gl.viewport(0, 0, W, H); gl.clearColor(.937, .933, .918, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
+  gl.useProgram(prog); gl.uniformMatrix4fv(U('uVP'), false, mat(eye, tg)); gl.uniform3fv(U('uEye'), eye); gl.uniform1f(U('uCut'), mode === 2 ? 1 : 0);
+  const D = meta.designs[cur], ex = modeT, draw = (m, c, off, glow) => { gl.uniform3fv(U('uC'), c); gl.uniform3fv(U('uOff'), off); gl.uniform1f(U('uGlow'), glow || 0); gl.bindVertexArray(m.v); gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_INT, 0); };
+  draw(M[cur + 'base'], D.color, [0, 0, 0]);
+  draw(M[cur + 'lid'], D.color, [0, 0, 34 * ex]);
+  const pulse = .5 + .5 * Math.sin(performance.now() / 600);
+  draw(M[cur + 'cap'], D.cap, [0, 0, 56 * ex], mode === 0 ? .18 * pulse : 0);
+  if (mode) { draw(M.atom, [.20, .20, .22], [0, 0, 14 * ex]); draw(M.bat, [.34, .34, .36], [0, 0, 14 * ex]); }
+  requestAnimationFrame(frame);
+}
+boot().catch(e => { window.FAIL = String(e); document.getElementById('info').textContent = '加载失败：' + e; });
+</script>
+</body>
+</html>

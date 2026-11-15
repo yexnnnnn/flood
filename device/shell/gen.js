@@ -27,7 +27,7 @@ const AX = X0 + HW.atom / 2;                             // ATOM centre x (butto
 const AH = HW.atom / 2 + HW.cl, TOP = HW.atomH + HW.cl;  // cavity half-width, cavity ceiling over the ATOM
 const BX0 = X0 + HW.atom - 1, BX1 = X0 + L + HW.cl;      // TailBat cavity x range (1 mm overlap)
 const BH = HW.batH + HW.cl, BW = HW.batW / 2 + HW.cl;
-const ZS = 9;                                            // split plane between base and lid
+let ZS = 9;                                            // split plane between base and lid
 const CAP_R = 12.5, HOLE_R = CAP_R + PRINT.tol + .1;     // button cap and its hole
 const FL_R = CAP_R + 1.2, FL_Z0 = HW.atomH + .15, FL_Z1 = FL_Z0 + 1.2;   // cap flange (keeps the cap from falling out)
 const PK_R = FL_R + .4, PK_Z0 = HW.atomH, PK_Z1 = FL_Z1 + .35;    // pocket in the lid for the flange
@@ -55,6 +55,25 @@ function arcs(x, y, R, w, n, bw, a0) {
     if (x * ux + y * uy > 0) db = min(db, abs(-x * uy + y * ux)); }
   return max(d, bw / 2 - db); }
 
+// smooth pebble: superellipse-ish plan outline with low harmonics, rounder top / flatter bottom profile.
+// The implicit F is turned into a distance by dividing by its (numerical) gradient.
+let PB = { cx: 0, a: 45, b: 32, zc: 7, tTop: 16.5, tBot: 14, p: 2.5, qTop: 2.1, qBot: 2.6 };
+function pebbleF(x, y, z) {
+  const u = x - PB.cx, th = atan2(y / PB.b, u / PB.a);
+  const wob = 1 + .04 * cos(2 * th + 1.1) + .03 * cos(3 * th - .5) - .035 * cos(th) + .012 * sin(5 * th + .3);     // fuller at the button end (-x)
+  const rho = hypot(u / PB.a, y / PB.b) / wob, dz = z - PB.zc + .9 * (u / PB.a) - .7 * (y / PB.b);
+  const T = dz > 0 ? PB.tTop * (1 - .07 * (u / PB.a)) : PB.tBot, q = dz > 0 ? PB.qTop : PB.qBot;
+  return (rho ** PB.p + abs(dz / T) ** q) ** (1 / PB.p) - 1; }
+function pebble(x, y, z) {
+  const f = pebbleF(x, y, z), e = .05;
+  const gx = (pebbleF(x + e, y, z) - pebbleF(x - e, y, z)) / (2 * e), gy = (pebbleF(x, y + e, z) - pebbleF(x, y - e, z)) / (2 * e), gz = (pebbleF(x, y, z + e) - pebbleF(x, y, z - e)) / (2 * e);
+  return f / max(hypot(gx, gy, gz), 1e-4); }
+// round through-holes on a hex grid (spacing s, radius r) inside radius R
+function dots(u, v, s, r, R) { const h = s * sqrt(3) / 2; let d = 1e9;
+  const j0 = Math.round(v / h); for (let j = j0 - 1; j <= j0 + 1; j++) { const off = (j & 1) ? s / 2 : 0, i0 = Math.round((u - off) / s);
+    for (let i = i0 - 1; i <= i0 + 1; i++) { const px = i * s + off, py = j * h; if (hypot(px, py) > R) continue; d = min(d, hypot(u - px, v - py) - r); } }
+  return d; }
+
 // electronics cavity (+ USB-C slot at the TailBat end)
 function cav(x, y, z) {
   const a = box(x, y, z, AX, 0, TOP / 2, AH, AH, TOP / 2, 1.5);
@@ -68,22 +87,16 @@ const cavCore = (x, y, z) => min(box(x, y, z, AX, 0, TOP / 2, AH, AH, TOP / 2, 1
 // capSlots(x,y) sound/light slots through the cap (local coords around the button axis), hole: lanyard hole.
 const ZB = -2.4;                                          // flat bottom (2.4 mm floor)
 const DESIGNS = {
-  // A · 河卵石: an egg-shaped river stone, fatter at the button end, with a natural "holed stone" lanyard hole.
+  // A · 河卵石: one smooth discoidal river stone (Zingg "disc": short/long ≈ .32, mid/long ≈ .70), slightly thicker over
+  // the button end, flatter underneath, outline nudged off a perfect oval. No surface lines except the seam and the button.
   A: {
-    name: '河卵石 Pebble', color: [.86, .84, .80], cap: [.93, .92, .89],
-    outer(x, y, z) {
-      const c = cos(.07), s = sin(.07), x2 = (x - 11) * c - y * s, y2 = (x - 11) * s + y * c;   // tail turned a little
-      let d = smin(ell(x, y, z, -13.5, 0, 9.4, 28, 26.5, 15.6), ell(x2, y2, z, 0, 0, 7.6, 28.5, 24.5, 15), 12);
-      return smax(d, ZB - z, 2); },
-    hole: { x: -34, y: 0, r: 2.4 },
-    lidDeco(x, y, z, d) {                                  // ripples around the button, like a stone dropped in water
-      const r = hypot(x - AX, y); let g = 1e9;
-      for (const R of [18.2, 22.6]) g = min(g, abs(r - R) - .55);
-      return max(g, -d - .6, 18.2 - z, 5.5 - hypot(x - this.hole.x, y)); },
-    capTop(x, y, z, d) {                                   // flush, with a shallow thumb dish
-      const dish = 40 - hypot(x - AX, y, z - (this._top + 40 - 1.1));
-      return smax(max(d, dish), hypot(x - AX, y) - CAP_R, .8); },
-    capSlots: (u, v) => min(arcs(u, v, 5.6, 1.2, 3, 1.6, PI / 2), arcs(u, v, 9.2, 1.2, 3, 1.6, -PI / 2)),
+    name: '河卵石 Pebble', color: [.80, .79, .76], cap: [.84, .83, .80],
+    zs: 7,                                               // seam on the stone's widest line
+    outer(x, y, z) { return smax(pebble(x, y, z), ZB - z, 4); },
+    capTop(x, y, z, d) {                                   // flush, with a barely-there thumb dish
+      const dish = 60 - hypot(x - AX, y, z - (this._top + 60 - .7));
+      return smax(max(d, dish), hypot(x - AX, y) - CAP_R, .6); },
+    capSlots: (u, v) => dots(u, v, 2.5, .6, 6.4),       // small speaker holes instead of slots
   },
   // B · 竹节: a section of bamboo (竹报平安, "bamboo brings word of safety"), nodes as ridges, flat underside.
   B: {
@@ -131,8 +144,8 @@ function parts(D) {
   let t = 40; while (D.outer(AX, 0, t) > 0 && t > 0) t -= .05; D._top = t;
   const tongue = (x, y, z) => max(max(-cavCore(x, y, z), cavCore(x, y, z) - 1.1), slab(z, ZS - .01, ZS + 2), outer(x, y, z) + 1.5);
   const rabbet = (x, y, z) => max(cavCore(x, y, z) - 1.1 - PRINT.tol / 2 - .05, z - (ZS + 2 + .2), outer(x, y, z) + 1.5 - PRINT.tol / 2 - .05);
-  const base = (x, y, z) => max(min(max(outer(x, y, z), z - ZS), tongue(x, y, z)), -cav(x, y, z));
-  const lid = (x, y, z) => { const d = outer(x, y, z); let v = max(d, ZS - z, -cav(x, y, z), -rabbet(x, y, z));
+  const base = (x, y, z) => max(min(smax(outer(x, y, z), z - ZS, .7), tongue(x, y, z)), -cav(x, y, z));   // .7 mm round-over hides the seam
+  const lid = (x, y, z) => { const d = outer(x, y, z); let v = max(smax(d, ZS - z, .7), -cav(x, y, z), -rabbet(x, y, z));
     v = max(v, -max(cylZ(x, y, AX, 0, PK_R), slab(z, PK_Z0, PK_Z1)));            // flange pocket
     v = max(v, -max(cylZ(x, y, AX, 0, HOLE_R), PK_Z0 - z));                        // button hole
     if (D.lidDeco) v = max(v, -D.lidDeco(x, y, z, d));
@@ -183,9 +196,10 @@ function mesh(f, b, h) {                                    // b = [x0,y0,z0,x1,
     for (let n = 0; n < 12; n++) { if (!X(n)) continue; const r = find(n);
       if (vid[r] < 0) {
         let x = ox + (i + acc[r * 4] / cnt[r]) * h, y = oy + (j + acc[r * 4 + 1] / cnt[r]) * h, z = oz + (k + acc[r * 4 + 2] / cnt[r]) * h;
+        for (let it = 0; it < 2; it++) {
         const d = f(x, y, z), gx = (f(x + e, y, z) - f(x - e, y, z)) / (2 * e), gy = (f(x, y + e, z) - f(x, y - e, z)) / (2 * e), gz = (f(x, y, z + e) - f(x, y, z - e)) / (2 * e), gg = gx * gx + gy * gy + gz * gz;
         if (gg > 1e-6) { const lim = h * .5 / sqrt(gg), s2 = clamp(d / gg, -lim, lim), x0 = ox + i * h, y0 = oy + j * h, z0 = oz + k * h;
-          x = clamp(x - gx * s2, x0, x0 + h); y = clamp(y - gy * s2, y0, y0 + h); z = clamp(z - gz * s2, z0, z0 + h); }
+          x = clamp(x - gx * s2, x0, x0 + h); y = clamp(y - gy * s2, y0, y0 + h); z = clamp(z - gz * s2, z0, z0 + h); } }
         vid[r] = P.length / 3; P.push(x, y, z); }
       EV[slot * 12 + n] = vid[r]; }
   }
@@ -243,10 +257,15 @@ function write3mf(file, objs) {                              // objs: [{name, m}
     ['3D/3dmodel.model', parts.join('')]]));
 }
 // light mesh for the web preview: int16 positions (0.01 mm) + uint32 indices
-function writeBin(file, m) {
-  const nv = m.p.length / 3, head = new Uint32Array([nv, m.t.length / 3]), q = new Int16Array(m.p.length);
+// layout: [nv, nt] uint32 | positions int16 x3 | normals int8 x3 (from the SDF gradient, so shading is smooth) | pad | indices uint32 x3
+function writeBin(file, m, f) {
+  const nv = m.p.length / 3, head = new Uint32Array([nv, m.t.length / 3]), q = new Int16Array(m.p.length), n = new Int8Array(m.p.length), e = .03;
   for (let i = 0; i < m.p.length; i++) q[i] = Math.round(m.p[i] * 100);
-  fs.writeFileSync(file, Buffer.concat([Buffer.from(head.buffer), Buffer.from(q.buffer), Buffer.alloc((4 - (q.byteLength % 4)) % 4), Buffer.from(m.t.buffer)]));
+  for (let i = 0; i < m.p.length; i += 3) { const x = m.p[i], y = m.p[i + 1], z = m.p[i + 2];
+    const gx = f(x + e, y, z) - f(x - e, y, z), gy = f(x, y + e, z) - f(x, y - e, z), gz = f(x, y, z + e) - f(x, y, z - e), l = hypot(gx, gy, gz) || 1;
+    n[i] = Math.round(gx / l * 127); n[i + 1] = Math.round(gy / l * 127); n[i + 2] = Math.round(gz / l * 127); }
+  const used = q.byteLength + n.byteLength;
+  fs.writeFileSync(file, Buffer.concat([Buffer.from(head.buffer), Buffer.from(q.buffer), Buffer.from(n.buffer), Buffer.alloc((4 - (used % 4)) % 4), Buffer.from(m.t.buffer)]));
 }
 
 // ============================================================ checks: wall thickness around the electronics
@@ -265,7 +284,7 @@ function wallReport(D, P) {
   return r;
 }
 
-if (process.env.LIB) { module.exports = { DESIGNS, parts, mesh, AX, ZS, FL_Z0, FL_Z1, FL_R, ZB }; return; }
+if (process.env.LIB) { module.exports = { setZS: v => { ZS = v; }, DESIGNS, parts, mesh, AX, ZS, FL_Z0, FL_Z1, FL_R, ZB, wallReport, setPB: o => Object.assign(PB, o) }; return; }
 // ============================================================ run
 const OUT = path.join(__dirname, 'out'), VIEW = path.join(OUT, 'view');
 fs.mkdirSync(VIEW, { recursive: true });
@@ -273,25 +292,25 @@ const want = process.argv.slice(2).filter(a => DESIGNS[a]); const ids = want.len
 const H = +(process.env.H || .32), HV = +(process.env.HV || .6), CHECK_ONLY = !!process.env.CHECK;
 const summary = {};
 for (const id of ids) {
-  const D = DESIGNS[id], P = parts(D), t0 = Date.now();
+  const D = DESIGNS[id]; ZS = D.zs || 9; const P = parts(D), t0 = Date.now();
   const w = wallReport(D, P); const at = w.at; delete w.at; console.log(id, D.name, 'walls mm', JSON.stringify(Object.fromEntries(Object.entries(w).map(([k, v]) => [k, +v.toFixed(2)]))), 'at', JSON.stringify(at));
   if (CHECK_ONLY) continue;
-  const BB = [-46, -32, ZB - .5, 42, 32, 34];
+  const BB = [-52, -38, ZB - .5, 52, 38, 34];
   const out = {}, info = {};
   for (const [k, f, bb] of [['base', P.base, [BB[0], BB[1], BB[2], BB[3], BB[4], ZS + 2.5]], ['lid', P.lid, [BB[0], BB[1], ZS - .5, BB[3], BB[4], BB[5]]],
                             ['cap', P.cap, [AX - FL_R - 1, -FL_R - 1, FL_Z0 - .5, AX + FL_R + 1, FL_R + 1, BB[5]]]]) {
     const m = mesh(f, bb, k === 'cap' ? H * .7 : H), b = bounds(m), bad = edgeCheck(m);
     out[k] = m; info[k] = { tris: m.t.length / 3, size: [b[3] - b[0], b[4] - b[1], b[5] - b[2]].map(v => +v.toFixed(1)), vol_cm3: +(m.vol / 1000).toFixed(1), badEdges: bad };
-    const mv = mesh(f, bb, k === 'cap' ? HV * .6 : HV); writeBin(path.join(VIEW, `${id}_${k}.bin`), mv);
+    const mv = mesh(f, bb, k === 'cap' ? HV * .6 : HV); writeBin(path.join(VIEW, `${id}_${k}.bin`), mv, f);
   }
   // plate layout (fits a 180 x 180 A1 mini plate): base front, lid behind, cap at the side, each sitting on z = 0
   const place = (m, cx, cy) => { const b = bounds(m); return moved(m, cx - (b[0] + b[3]) / 2, cy - (b[1] + b[4]) / 2, -b[2]); };
   write3mf(path.join(OUT, `${id}.3mf`), [
-    { name: `${id} base 底座`, m: place(out.base, 80, 45) }, { name: `${id} lid 上盖`, m: place(out.lid, 80, 110) }, { name: `${id} button 按键`, m: place(out.cap, 152, 75) }]);
+    { name: `${id} base 底座`, m: place(out.base, 80, 40) }, { name: `${id} lid 上盖`, m: place(out.lid, 80, 113) }, { name: `${id} button 按键`, m: place(out.cap, 156, 76) }]);
   summary[id] = { name: D.name, ...info, ms: Date.now() - t0 };
   console.log(id, JSON.stringify(info), (Date.now() - t0) + 'ms');
 }
 if (!CHECK_ONLY) {
-  const meta = { hw: HW, ax: AX, zs: ZS, fl: [FL_Z0, FL_Z1], designs: Object.fromEntries(ids.map(i => [i, { name: DESIGNS[i].name, color: DESIGNS[i].color, cap: DESIGNS[i].cap }])) };
+  const meta = { hw: HW, ax: AX, zs: ZS, fl: [FL_Z0, FL_Z1], designs: Object.fromEntries(Object.keys(DESIGNS).map(i => [i, { name: DESIGNS[i].name, color: DESIGNS[i].color, cap: DESIGNS[i].cap }])) };
   fs.writeFileSync(path.join(VIEW, 'meta.json'), JSON.stringify(meta));
 }

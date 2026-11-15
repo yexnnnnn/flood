@@ -23,7 +23,7 @@ button.on { background:#2b2b2b; color:#fff; }
 <script>
 'use strict';
 const NOTES = {
-  A: ['A · 河卵石', '握在手心。整颗石头的顶面是按键，拇指窝告诉你按哪里；一圈圈水波纹是装饰也是手感。尾部的孔像天然带孔的石头，穿绳。约 81 × 53 × 27 mm。'],
+  A: ['A · 河卵石', '按真实河卵石的比例做的扁圆石头：厚 : 长 ≈ 0.29，宽 : 长 ≈ 0.69，上面圆，下面平一些，最宽处正好是接缝。表面没有任何线，只有按键一圈和几个出声小孔。约 92 × 63 × 26 mm。'],
   B: ['B · 竹节', '竹报平安。像一小节竹子，竹节是凸起的箍，按键在竹身上，出声的缝顺着竹纤维。底部削平，放桌上不滚。约 73 × 41 × 31 mm。'],
   C: ['C · 平安牌', '挂在脖子上的扁牌，像玉牌。圆形按键微微凸起，像一枚平安扣，摸得到。一圈细边框，顶上穿绳孔。约 77 × 42 × 24 mm。'],
 };
@@ -50,9 +50,9 @@ void main() {
   c += uGlow * vec3(.25, .85, .45) * .55;
   o = vec4(pow(c, vec3(.92)), 1.); }`));
 gl.linkProgram(prog); const U = n => gl.getUniformLocation(prog, n);
-function upload(pos, idx) {
-  const n = new Float32Array(pos.length);
-  for (let i = 0; i < idx.length; i += 3) { const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
+function upload(pos, idx, given) {
+  const n = given || new Float32Array(pos.length);
+  if (!given) for (let i = 0; i < idx.length; i += 3) { const a = idx[i] * 3, b = idx[i + 1] * 3, c = idx[i + 2] * 3;
     const ux = pos[b] - pos[a], uy = pos[b + 1] - pos[a + 1], uz = pos[b + 2] - pos[a + 2], vx = pos[c] - pos[a], vy = pos[c + 1] - pos[a + 1], vz = pos[c + 2] - pos[a + 2];
     const nx = uy * vz - uz * vy, ny = uz * vx - ux * vz, nz = ux * vy - uy * vx; for (const k of [a, b, c]) { n[k] += nx; n[k + 1] += ny; n[k + 2] += nz; } }
   const v = gl.createVertexArray(); gl.bindVertexArray(v);
@@ -60,8 +60,9 @@ function upload(pos, idx) {
   const ib = gl.createBuffer(); gl.bindBuffer(gl.ELEMENT_ARRAY_BUFFER, ib); gl.bufferData(gl.ELEMENT_ARRAY_BUFFER, idx, gl.STATIC_DRAW);
   gl.bindVertexArray(null); return { v, n: idx.length };
 }
-function fromBin(buf) { const h = new Uint32Array(buf, 0, 2), nv = h[0], nt = h[1], q = new Int16Array(buf, 8, nv * 3), off = 8 + Math.ceil(nv * 6 / 4) * 4;
-  const p = new Float32Array(nv * 3); for (let i = 0; i < p.length; i++) p[i] = q[i] / 100; return upload(p, new Uint32Array(buf, off, nt * 3)); }
+function fromBin(buf) { const h = new Uint32Array(buf, 0, 2), nv = h[0], nt = h[1], q = new Int16Array(buf, 8, nv * 3), nn = new Int8Array(buf, 8 + nv * 6, nv * 3), off = 8 + Math.ceil(nv * 9 / 4) * 4;
+  const p = new Float32Array(nv * 3), n = new Float32Array(nv * 3); for (let i = 0; i < p.length; i++) { p[i] = q[i] / 100; n[i] = nn[i] / 127; }
+  return upload(p, new Uint32Array(buf, off, nt * 3), n); }
 function boxMesh(x0, y0, z0, x1, y1, z1) { const p = [], t = [];
   const F = [[[x0,y0,z0],[x1,y0,z0],[x1,y0,z1],[x0,y0,z1]],[[x1,y1,z0],[x0,y1,z0],[x0,y1,z1],[x1,y1,z1]],[[x0,y1,z0],[x0,y0,z0],[x0,y0,z1],[x0,y1,z1]],
              [[x1,y0,z0],[x1,y1,z0],[x1,y1,z1],[x1,y0,z1]],[[x0,y0,z1],[x1,y0,z1],[x1,y1,z1],[x0,y1,z1]],[[x0,y1,z0],[x1,y1,z0],[x1,y0,z0],[x0,y0,z0]]];
@@ -104,7 +105,7 @@ function frame() {
   modeT += ((mode === 1 ? 1 : 0) - modeT) * .12; if (!drag && mode !== 2) cam.yaw += .0012;
   const tg = [0, 10 + 12 * modeT, 0], cp = Math.cos(cam.pitch), eye = [tg[0] + cam.dist * cp * Math.sin(cam.yaw), tg[1] + cam.dist * Math.sin(cam.pitch), tg[2] + cam.dist * cp * Math.cos(cam.yaw)];
   gl.viewport(0, 0, W, H); gl.clearColor(.937, .933, .918, 1); gl.clear(gl.COLOR_BUFFER_BIT | gl.DEPTH_BUFFER_BIT); gl.enable(gl.DEPTH_TEST);
-  gl.useProgram(prog); gl.uniformMatrix4fv(U('uVP'), false, mat(eye, tg)); gl.uniform3fv(U('uEye'), eye); gl.uniform1f(U('uCut'), mode === 2 ? 1 : 0);
+  gl.useProgram(prog); gl.uniformMatrix4fv(U('uVP'), false, mat(eye, tg)); gl.uniform3fv(U('uEye'), eye); gl.uniform1f(U('uCut'), mode === 2 ? 1 : 0); if (mode === 2) gl.disable(gl.CULL_FACE); else gl.enable(gl.CULL_FACE);
   const D = meta.designs[cur], ex = modeT, draw = (m, c, off, glow) => { gl.uniform3fv(U('uC'), c); gl.uniform3fv(U('uOff'), off); gl.uniform1f(U('uGlow'), glow || 0); gl.bindVertexArray(m.v); gl.drawElements(gl.TRIANGLES, m.n, gl.UNSIGNED_INT, 0); };
   draw(M[cur + 'base'], D.color, [0, 0, 0]);
   draw(M[cur + 'lid'], D.color, [0, 0, 34 * ex]);

@@ -7,17 +7,27 @@ import os, re, math
 from xml.sax.saxutils import escape
 
 OUT = os.path.join(os.path.dirname(os.path.abspath(__file__)), 'figma', 'system-design-en')
-SERIF = 'Instrument Serif, Cormorant Garamond, Georgia, serif'
+# Swiss-signal edition: one grotesk family (Inter Tight display / Inter text), white paper + crosshair dot grid,
+# flat saturated highlighter blocks, an orange oval, black ticker bands.  All fonts are on Google Fonts / in Figma.
+SERIF = 'Inter Tight, Inter, Helvetica Neue, Arial, sans-serif'      # display (kept the old name so call sites stay)
 SANS = 'Inter, Helvetica Neue, Arial, sans-serif'
-MONO = 'JetBrains Mono, IBM Plex Mono, SF Mono, Menlo, monospace'
-BG, INK, MUTE, HAIR, PAPER, TINT, MAP = '#f3f1ec', '#141414', '#8a867d', '#cfcac0', '#fbfaf7', '#ebe8e1', '#e4e1d9'
-LV = {'blue': '#2f5bea', 'yellow': '#e2a900', 'orange': '#e8681a', 'red': '#d63a2b'}
+MONO = 'Inter, Arial, Helvetica Neue, sans-serif'                     # small caps labels
+BG, INK, MUTE, HAIR, PAPER, TINT, MAP = '#ffffff', '#0a0a0a', '#7a7a7a', '#d6d6d6', '#ffffff', '#f1f1ef', '#ebebe8'
+LV = {'blue': '#1f4bff', 'yellow': '#ffe100', 'orange': '#ff6a00', 'red': '#ff2a1f'}
+ON = {'blue': '#fff', 'yellow': INK, 'orange': INK, 'red': '#fff'}   # text colour on each level block
+HL = {'yellow': '#ffe100', 'orange': '#ff6a00', 'pink': '#ff3fae', 'green': '#1fd17a', 'violet': '#a98bff', 'blue': '#1f4bff'}
+STC = ['#1fd17a', '#a98bff', '#ff3fae', '#ff6a00', '#1f4bff']       # Observe Map Assess Alert Evacuate
 ACT = {'blue': 'Watch', 'yellow': 'Prepare', 'orange': 'Leave the gully', 'red': 'Evacuate now'}
-FACT = {SERIF: .47, SANS: .55, MONO: .61}
+FACT = {SERIF: .50, SANS: .55, MONO: .68}
 PROJECT = "CBEWS — SHENJIA'AN VILLAGE, LAISHUI"
 
 # ------------------------------------------------------------------ primitives
-def tw(s, fs, font=SANS, ls=0): return len(s) * fs * (FACT[font] + ls)
+_BW = dict(zip('abcdefghijklmnopqrstuvwxyz', [.56, .6, .54, .6, .57, .36, .6, .6, .26, .26, .55, .26, .9, .6, .59, .6, .6, .39, .52, .37, .6, .55, .8, .55, .55, .5]))
+_BW.update({' ': .24, ',': .26, '.': .26, "'": .22, '-': .4, 'I': .28, 'M': .86, 'W': .95, 'J': .5})
+def tw(s, fs, font=SANS, ls=0):
+    if font == SERIF:                       # per-glyph widths ≈ Inter Tight Bold (display text gets highlighter blocks)
+        return fs * sum(_BW.get(ch, .68 if ch.isupper() else .6) * .96 + ls for ch in s)
+    return len(s) * fs * (FACT[font] + ls)
 def wrap(s, fs, w, font=SANS, ls=0):
     out = []
     for para in s.split('\n'):
@@ -30,12 +40,14 @@ def wrap(s, fs, w, font=SANS, ls=0):
     return out
 def T(x, y, s, fs=14, w=None, fill=INK, font=SANS, weight=400, anchor='start', lh=1.45, ls=0, up=False, italic=False, op=1):
     s = s.upper() if up else s
+    if font == SERIF:                                   # display: bold, tight, upright
+        weight = 700 if weight == 400 else weight; ls = ls or -.04; italic = False; lh = min(lh, 1.08)
     lines = wrap(s, fs, w, font, ls) if w else s.split('\n')
     a = (f' letter-spacing="{ls * fs:.2f}"' if ls else '') + (' font-style="italic"' if italic else '') + (f' opacity="{op}"' if op != 1 else '')
     return ''.join(f'<text x="{x:.1f}" y="{y + i * fs * lh:.1f}" font-family="{font}" font-size="{fs}" font-weight="{weight}" fill="{fill}" text-anchor="{anchor}"{a}>{escape(l)}</text>'
                    for i, l in enumerate(lines)), len(lines) * fs * lh
 def M_(x, y, s, fs=11, fill=MUTE, anchor='start', w=None):          # mono label
-    return T(x, y, s, fs, w=w, fill=fill, font=MONO, anchor=anchor, ls=.08, up=True)
+    return T(x, y, s, fs, w=w, fill=fill, font=MONO, anchor=anchor, ls=.06, up=True, weight=600)
 def R(x, y, w, h, r=0, fill='none', stroke=None, sw=1, dash=None, op=1):
     return (f'<rect x="{x:.1f}" y="{y:.1f}" width="{w:.1f}" height="{h:.1f}" rx="{r}" fill="{fill}"' + (f' stroke="{stroke}" stroke-width="{sw}"' if stroke else '')
             + (f' stroke-dasharray="{dash}"' if dash else '') + (f' opacity="{op}"' if op != 1 else '') + '/>')
@@ -60,18 +72,53 @@ def defs():
 def legend(x, y):
     out, cx = [], x
     for k, c in LV.items():
-        s = f'{k} — {ACT[k]}'; out += [C(cx + 5, y - 4, 5, c), M_(cx + 16, y, s, 11, INK)[0]]; cx += 16 + tw(s, 11, MONO, .08) + 30
+        s = f'{k} — {ACT[k]}'; w = tw(s, 11, MONO, .06) + 24
+        out += [R(cx, y - 18, w, 26, 0, c), M_(cx + 12, y - 1, s, 11, ON[k])[0]]; cx += w + 6
     return ''.join(out)
-def sheet(W, H, no, kicker, title, intro, body, aura='blue', ax=None, ay=None):
-    """editorial frame: mono masthead, serif headline, intro, legend, hairlines, footer, one soft colour aura"""
-    ax = W - 260 if ax is None else ax; ay = H - 140 if ay is None else ay
-    head = [R(0, 0, W, H, 0, BG), C(ax, ay, 520, f'url(#a{aura})'),
-            M_(80, 64, PROJECT, 11, INK)[0], M_(W - 80, 64, f'{no:02d} / 05 — {kicker}', 11, INK, 'end')[0], L(80, 82, W - 80, 82, INK, 1),
-            T(80, 190, title, 84, font=SERIF, lh=1.02)[0],
-            T(W - 80 - 520, 140, intro, 16, w=520, fill=INK, lh=1.55)[0], legend(80, 262),
-            L(80, 292, W - 80, 292, HAIR, 1),
-            L(80, H - 70, W - 80, H - 70, HAIR, 1), M_(80, H - 42, 'Community-based Early Warning System · 2026', 10)[0],
-            M_(W - 80, H - 42, 'Observe → Map → Assess → Alert → Evacuate', 10, anchor='end')[0]]
+def hlblock(x, y, s, fs, color, font=SERIF, ls=-.04, maxw=1e9):
+    """flat highlighter block behind a run of text (baseline y)"""
+    # deliberately overhangs the text on the right (Room 6x8 style), so font metric differences never clip a word
+    return R(x - fs * .12, y - fs * .76, min(maxw, tw(s, fs, font, ls) * 1.1 + fs * .9), fs * .94, 0, color)
+def dotgrid(W, H, top, step=80):
+    """Aizome-style registration grid: small dots at every crossing, a tick cross every 4th"""
+    o = [f'<g id="grid" fill="{INK}" opacity=".32">']
+    for gx in range(80, W - 79, step):
+        for gy in range(top, H - 79, step):
+            o.append(f'<rect x="{gx - 1.2}" y="{gy - 1.2}" width="2.4" height="2.4"/>')
+    o.append('</g><g id="ticks" stroke="#0a0a0a" stroke-width="1" opacity=".5">')
+    for gx in range(80, W - 79, step * 4):
+        for gy in range(top, H - 79, step * 4):
+            o.append(f'<path d="M{gx - 7},{gy} H{gx + 7} M{gx},{gy - 7} V{gy + 7}"/>')
+    return ''.join(o) + '</g>'
+def ticker(W, y, items, h=40, fs=14):
+    """black band with repeating coloured words (the 'on air' marquee)"""
+    o, x, i = [R(0, y, W, h, 0, INK)], 40, 0
+    while x < W - 40:
+        s, c = items[i % len(items)]
+        if s == '•': o.append(C(x + 4, y + h / 2, 4, c)); x += 26
+        else: o.append(T(x, y + h / 2 + fs * .36, s, fs, fill=c, weight=700, ls=.02, up=True)[0]); x += tw(s, fs, SANS, .02) + 18
+        i += 1
+    return ''.join(o)
+TOPTICK = sum([[(s, STC[i]), ('•', LV[k])] for i, (s, k) in enumerate(zip(['Observe', 'Map', 'Assess', 'Alert', 'Evacuate'], ['blue', 'yellow', 'orange', 'red', 'blue']))], [])
+BOTTICK = sum([[(k, LV[k]), (ACT[k], '#fff'), ('•', '#555')] for k in LV], [])
+def sheet(W, H, no, kicker, title, intro, body, aura='yellow', hl=None, *_):
+    """Swiss-signal frame: ticker bands, crosshair dot grid, bold tight headline with one highlighter block,
+       an orange oval sheet number, level legend as flat colour blocks"""
+    hc = HL.get(aura, HL['yellow']) if aura != 'blue' else HL['green']
+    IW = 440; ix = W - 80 - 200 - IW
+    tfs, ty = min(92, int((ix - 180) / tw(title, 1, SERIF, -.04))), 214
+    hb = ''
+    if hl:                                   # one flat block behind the whole headline, starting at the margin
+        hb = hlblock(80, ty, title, tfs, hc, maxw=ix - 40 - 80 + tfs * .12)
+    ox, oy = W - 80 - 96, 146
+    head = [R(0, 0, W, H, 0, BG), dotgrid(W, H, 400), ticker(W, 0, TOPTICK),
+            M_(80, 82, PROJECT, 11, INK)[0], M_(W - 80, 82, f'Sheet {no:02d} of 05 — {kicker}', 11, INK, 'end')[0], L(80, 98, W - 80, 98, INK, 1.5),
+            hb, T(80, ty, title, tfs, font=SERIF)[0],
+            f'<ellipse cx="{ox}" cy="{oy + 34}" rx="96" ry="52" fill="none" stroke="{LV["orange"]}" stroke-width="5"/>',
+            T(ox, oy + 58, f'{no:02d}', 68, font=SERIF, anchor='middle', fill=LV['orange'])[0],
+            T(ix, 140, intro, 16, w=IW, fill=INK, lh=1.45, weight=500)[0], legend(80, 276),
+            L(80, 298, W - 80, 298, INK, 1.5),
+            ticker(W, H - 40, BOTTICK, fs=12)]
     return f'<svg xmlns="http://www.w3.org/2000/svg" width="{W}" height="{H}" viewBox="0 0 {W} {H}">{defs()}{"".join(head)}{body}</svg>'
 
 # ------------------------------------------------------------------ 01 · wireframe
@@ -89,7 +136,8 @@ def statusbar(light=False):
     return T(34, 36, '9:41', 15, fill=c, weight=600)[0] + R(PW - 64, 25, 28, 13, 4, 'none', c) + R(128, 828, 134, 5, 3, c)
 def levelpill(k='blue', x=20, y=54):
     s = f'{k.capitalize()} · {ACT[k]}'; w = tw(s, 13) + 46
-    return R(x, y, w, 34, 17, PAPER, op=.96) + C(x + 19, y + 17, 6, LV[k]) + T(x + 33, y + 22, s, 13, weight=500)[0]
+    w -= 20
+    return R(x, y, w, 34, 0, LV[k]) + T(x + 13, y + 22, s, 13, fill=ON[k], weight=700)[0]
 def mic(cx=195, cy=752, r=36, fill=INK, ring=False):
     o = (C(cx, cy, r + 14, 'none', fill, 1.2, op=.35) if ring else '') + C(cx, cy, r, fill)
     return o + R(cx - 6, cy - 17, 12, 22, 6, '#fff') + f'<path d="M{cx - 11},{cy - 2} a11,11 0 0 0 22,0" stroke="#fff" stroke-width="2" fill="none"/>' + L(cx, cy + 9, cx, cy + 15, '#fff', 2)
@@ -126,7 +174,7 @@ def s_record():
     o.append(T(32, y + 50, 'Matches: “Muffled gully” · Orange', 12, fill=MUTE)[0])
     return ''.join(o) + C(195, 752, 66, 'none', LV['red'], 1, op=.18) + mic(fill=LV['red'], ring=True) + M_(195, 812, 'Release to send · slide up to cancel', 10, anchor='middle')[0]
 def s_map():
-    o = [mapart(), statusbar(), levelpill('yellow'), M_(20, 116, '● Verified, colour = level   ◌ Unverified', 9)[0],
+    o = [mapart(), statusbar(), levelpill('yellow'), M_(20, 116, 'Solid = verified, colour = level · Dashed = unverified', 9)[0],
          marker(110, 250, 'orange', 'Rockfall on slope'), marker(180, 180, 'yellow', 'North gully · 3 · 40 min', r=34, count=3),
          marker(210, 470, 'blue', 'My report · unverified', verified=False), marker(250, 690, 'blue', 'Dragonflies low'),
          R(20, 756, 350, 56, 28, PAPER, op=.96), M_(44, 789, 'Last 6 h', 10, INK)[0], L(120, 784, 340, 784, HAIR, 2), C(300, 784, 8, INK)]
@@ -145,8 +193,8 @@ def s_rule():
     return ''.join(o) + btns(760, 'I see it too', 'Not here')
 def s_alert():
     o = [mapart(), C(240, 430, 120, 'url(#gorange)'), M_(240, 560, 'North gully · 300 m', 10, LV['orange'], 'middle')[0], statusbar(),
-         R(16, 50, 358, 42, 21, LV['orange']), C(38, 71, 5, '#fff', op=.75), C(352, 71, 5, '#fff', op=.75),
-         M_(195, 75, 'Broadcast on air · Orange · Leave the gully', 10, '#fff', 'middle')[0],
+         R(16, 50, 358, 42, 0, LV['orange']), C(38, 71, 5, INK), C(352, 71, 5, INK),
+         M_(195, 75, 'Broadcast on air · Orange · Leave the gully', 10, INK, 'middle')[0],
          R(16, 106, 358, 152, 22, PAPER, op=.97), R(30, 122, 32, 32, 8, LV['orange']),
          T(74, 136, "Shenjia'an Alert · Orange", 13, weight=600)[0], T(358, 136, 'now', 12, fill=MUTE, anchor='end')[0]]
     t, h = T(74, 157, 'Muffled north gully. Your home is in the zone — move away from the gully now.', 13, w=282); o.append(t)
@@ -189,14 +237,14 @@ def wireframe():
               T(x, top + PH + 46, note, 14, w=PW - 10, lh=1.6)[0]]
     return sheet(W, H, 1, 'Wireframe', 'Six screens, one gesture.',
                  'A villager should be able to report what they notice in ten seconds, with one hand, without reading. Everything else — sorting, checking, warning, guiding — happens around that single gesture.',
-                 ''.join(o), 'blue', W - 300, 120)
+                 ''.join(o), 'yellow', 'one gesture.')
 
 # ------------------------------------------------------------------ 02 · workflow
 STAGES = [('Observe', 'Villagers notice and speak'), ('Map', 'Reports gather by place and time'), ('Assess', 'Rules weigh, people verify'),
           ('Alert', 'One message, every channel'), ('Evacuate', 'Where, when, which way')]
 def step(x, y, w, sid, s, no=None, strong=False):
-    t, h = T(x + 16, y + 44, s, 14, w=w - 32, lh=1.5, weight=600 if strong else 400); hh = h + 44
-    o = R(x, y, w, hh, 2, PAPER, INK if strong else HAIR, 1) + M_(x + 16, y + 22, sid, 9, MUTE)[0] + t
+    t, h = T(x + 16, y + 44, s, 14, w=w - 32, lh=1.5, weight=600 if strong else 400, fill='#fff' if strong else INK); hh = h + 44
+    o = R(x, y, w, hh, 0, INK if strong else PAPER, INK, 1.2 if strong else .8) + M_(x + 16, y + 22, sid, 9, MUTE)[0] + t
     if no:
         if sid.startswith('◇'): pass
         t2, h2 = T(x + 16, y + hh + 18, no, 12, w=w - 32, fill=MUTE, lh=1.45)
@@ -219,7 +267,7 @@ def workflow():
     o, ends = [], []
     for i, (name, sub) in enumerate(STAGES):
         x = 80 + i * cw
-        o += [M_(x, top, f'{i + 1:02d}', 11, INK)[0], T(x, top + 46, name, 40, font=SERIF)[0], T(x, top + 74, sub, 13, fill=MUTE)[0]]
+        o += [M_(x, top, f'{i + 1:02d}', 11, INK)[0], hlblock(x, top + 46, name, 40, STC[i]), T(x, top + 46, name, 40, font=SERIF)[0], T(x, top + 74, sub, 13, fill=MUTE)[0]]
         if i: o.append(L(x - 22, top - 10, x - 22, 1100, HAIR))
         y = top + 106
         for k, it in enumerate(cols[i]):
@@ -236,12 +284,12 @@ def workflow():
     H = int(yb + 200)
     return sheet(W, H, 2, 'Workflow', 'From a hunch to a plan.',
                  'How one spoken observation becomes an action for everyone in the village. A rule engine does the counting; people make the call. Every alert ends in a debrief that teaches the system.',
-                 ''.join(o), 'orange').replace('y2="1100"', f'y2="{yb + 10}"')
+                 ''.join(o), 'pink', 'a plan.').replace('y2="1100"', f'y2="{yb + 10}"')
 
 # ------------------------------------------------------------------ 03 · user journeys
 JOURNEYS = {
   'wang': dict(no='3a', title='Grandma Wang', aura='orange',
-    meta='76 · lives alone · north gully mouth · no smartphone · walks ≈ 0.7 m/s',
+    meta='76 · lives alone · north gully mouth · no smartphone · walks ~0.7 m/s',
     intro='One flash-flood afternoon, seen by someone the usual apps leave out. She has no smartphone — only her ears, the old sayings, and a button device around her neck.',
     stages=['Notices', 'Reports', 'Waits', 'Is warned', 'Leaves', 'Shelters, returns'], emo=[-.4, .5, -1, -2, .8, 1.6],
     rows=[('Doing', ['After hours of hard rain she hears the gully go dull and sees the water yellow.', 'Holds the button: “The gully sounds muffled, the water’s yellow.” The light turns green.',
@@ -270,7 +318,7 @@ def journey(key):
     o = [T(80, 352, J['title'], 52, font=SERIF)[0], M_(80, 384, J['meta'], 11, INK)[0], L(80, 410, W - 80, 410, INK)]
     y = 440
     for i, s in enumerate(J['stages']):
-        o += [M_(x0 + i * cw, y, f'{i + 1:02d}', 10, MUTE)[0], T(x0 + i * cw, y + 32, s, 24, font=SERIF)[0]]
+        o += [M_(x0 + i * cw, y, f'{i + 1:02d}', 10, MUTE)[0], hlblock(x0 + i * cw, y + 32, s, 22, list(HL.values())[i % 6]), T(x0 + i * cw, y + 32, s, 22, font=SERIF, fill='#fff' if i % 6 == 5 else INK)[0]]
     y += 60; ytop = y
     for name, cells in J['rows']:
         o.append(L(80, y, W - 80, y, HAIR))
@@ -281,11 +329,11 @@ def journey(key):
             d = f'M{pts[0][0]},{pts[0][1]}' + ''.join(f' C{(pts[i - 1][0] + pts[i][0]) / 2},{pts[i - 1][1]} {(pts[i - 1][0] + pts[i][0]) / 2},{pts[i][1]} {pts[i][0]},{pts[i][1]}' for i in range(1, len(pts)))
             lo = min(range(len(pts)), key=lambda i: -pts[i][1] * -1 if False else pts[i][1] * -1)
             lo = max(range(len(pts)), key=lambda i: pts[i][1])
-            o += [C(pts[lo][0], pts[lo][1], 70, f'url(#a{J["aura"]})'), f'<path d="{d}" fill="none" stroke="{INK}" stroke-width="1.4"/>']
+            o += [M_(pts[lo][0] + 16, pts[lo][1] + 4, 'Lowest point', 9, LV['red'])[0], f'<path d="{d}" fill="none" stroke="{INK}" stroke-width="1.4"/>']
             for k, (px, py) in enumerate(pts): o.append(C(px, py, 5 if k != lo else 7, INK if k != lo else LV['red'], BG, 2))
             y += hh; continue
         italic = name == 'Thinking'
-        fs, font = (17, SERIF) if italic else (14, SANS)
+        fs, font = 14, SANS
         hs = [T(0, 0, c, fs, w=cw - 40, font=font)[1] for c in cells]; hh = max(hs) + 44
         if name == 'Opportunities': o.append(R(80, y, W - 160, hh, 0, TINT, op=.7))
         o.append(M_(80, y + 30, name, 10, INK)[0])
@@ -293,12 +341,12 @@ def journey(key):
             cx = x0 + i * cw
             if name == 'Pain points': o.append(C(cx + 3, y + 25, 3, LV['orange']))
             if name == 'Opportunities': o.append(C(cx + 3, y + 25, 3, LV['blue']))
-            o.append(T(cx + (14 if name in ('Pain points', 'Opportunities') else 0), y + 30, c, fs, w=cw - 40 - (14 if name in ('Pain points', 'Opportunities') else 0), font=font, lh=1.45 if not italic else 1.25)[0])
+            o.append(T(cx + (14 if name in ('Pain points', 'Opportunities') else 0), y + 30, c, fs, w=cw - 40 - (14 if name in ('Pain points', 'Opportunities') else 0), font=font, lh=1.45, italic=italic, weight=500 if italic else 400)[0])
         y += hh
     o.append(L(80, y, W - 80, y, HAIR))
     for i in range(1, 6): o.append(L(x0 + i * cw - 20, ytop, x0 + i * cw - 20, y, HAIR, 1, '1 4'))
     H = int(y + 160)
-    return sheet(W, H, 3, f'Journey {J["no"]}', 'One storm, two lives.', J['intro'], ''.join(o), J['aura'], W - 200, H - 60)
+    return sheet(W, H, 3, f'Journey {J["no"]}', 'One storm, two lives.', J['intro'], ''.join(o), 'orange', 'two lives.')
 
 # ------------------------------------------------------------------ 04 · service blueprint
 def blueprint():
@@ -313,7 +361,7 @@ def blueprint():
             ('Support', 'Systems and partners', ['Button devices · 4G / Wi-Fi · offline cache', '3D village map · observation database', 'Rain, river and weather feeds; rule library (Trial / Verified)', 'Loudspeaker system · SMS gateway · push service', 'Household and health data (with consent) · shelter stock · pace table'])]
     o, y = [], 340
     for i, (name, sub) in enumerate(STAGES):
-        o += [M_(x0 + i * cw, y, f'{i + 1:02d}', 10)[0], T(x0 + i * cw, y + 40, name, 36, font=SERIF)[0]]
+        o += [M_(x0 + i * cw, y, f'{i + 1:02d}', 10)[0], hlblock(x0 + i * cw, y + 40, name, 36, STC[i]), T(x0 + i * cw, y + 40, name, 36, font=SERIF)[0]]
     y += 64; o.append(L(80, y, W - 80, y, INK))
     for name, sub, cells in rows:
         if cells is None:
@@ -328,7 +376,7 @@ def blueprint():
     H = int(y + 160)
     return sheet(W, H, 4, 'Service blueprint', 'What it takes, behind the glow.',
                  'Above the line of visibility is what villagers meet: a button, a map, a voice on the loudspeaker. Below it are the grid workers, officials, data and partners that make each moment work.',
-                 ''.join(o), 'yellow', W - 260, H - 80)
+                 ''.join(o), 'green', 'the glow.')
 
 if __name__ == '__main__':
     os.makedirs(OUT, exist_ok=True)

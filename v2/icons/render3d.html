@@ -220,7 +220,7 @@ void main(){
 </script>
 <script>
 const bare = location.hash.includes('bare');
-if (bare) document.body.classList.add('bare');
+if (bare) { document.body.classList.add('bare'); document.documentElement.style.background = 'transparent'; }
 const scenes = location.hash.includes('person') ? [1] : location.hash.includes('tent') ? [0] : [0, 1];
 const N = +((location.hash.match(/n=(\d+)/)||[])[1] || 1024);
 const fsrc = document.getElementById('fs').textContent;

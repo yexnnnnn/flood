@@ -1,0 +1,107 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="784" height="980" viewBox="0 0 784 980" fill="none">
+<defs>
+  <!-- card body -->
+  <linearGradient id="cardFill" x1="0" y1="245" x2="0" y2="735" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#2A2A2D"/>
+    <stop offset=".28" stop-color="#151517"/>
+    <stop offset=".62" stop-color="#0C0D0E"/>
+    <stop offset="1" stop-color="#0E1513"/>
+  </linearGradient>
+  <linearGradient id="cardStroke" x1="0" y1="245" x2="0" y2="735" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#FFFFFF" stop-opacity=".16"/>
+    <stop offset=".35" stop-color="#FFFFFF" stop-opacity=".04"/>
+    <stop offset=".7" stop-color="#3EE6B4" stop-opacity=".25"/>
+    <stop offset="1" stop-color="#9BFFE0" stop-opacity=".9"/>
+  </linearGradient>
+  <!-- area under the curve -->
+  <linearGradient id="areaFill" x1="0" y1="470" x2="0" y2="735" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1FD6A0" stop-opacity=".22"/>
+    <stop offset=".45" stop-color="#14A57C" stop-opacity=".12"/>
+    <stop offset="1" stop-color="#2BE3AE" stop-opacity=".35"/>
+  </linearGradient>
+  <linearGradient id="gridFade" x1="0" y1="590" x2="0" y2="735" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#7DF5D2" stop-opacity=".22"/>
+    <stop offset="1" stop-color="#7DF5D2" stop-opacity=".04"/>
+  </linearGradient>
+  <linearGradient id="peakLine" x1="0" y1="470" x2="0" y2="735" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#8CFFE0" stop-opacity=".9"/>
+    <stop offset="1" stop-color="#8CFFE0" stop-opacity=".1"/>
+  </linearGradient>
+  <linearGradient id="curveStroke" x1="190" y1="0" x2="595" y2="0" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#1FC995"/>
+    <stop offset=".5" stop-color="#8CFFE0"/>
+    <stop offset="1" stop-color="#2AD9A5"/>
+  </linearGradient>
+  <!-- glows (radial gradients, no filters needed) -->
+  <radialGradient id="peakGlow" cx="440" cy="468" r="70" gradientUnits="userSpaceOnUse">
+    <stop offset="0" stop-color="#5BFFD0" stop-opacity=".55"/>
+    <stop offset=".45" stop-color="#1FD6A0" stop-opacity=".22"/>
+    <stop offset="1" stop-color="#1FD6A0" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="bottomGlowIn" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(405 728) scale(190 70)">
+    <stop offset="0" stop-color="#A8FFE6" stop-opacity=".95"/>
+    <stop offset=".35" stop-color="#4FF0BF" stop-opacity=".6"/>
+    <stop offset=".75" stop-color="#1BB98A" stop-opacity=".18"/>
+    <stop offset="1" stop-color="#1BB98A" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="bottomGlowOut" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(395 735) scale(245 95)">
+    <stop offset="0" stop-color="#2FE3AE" stop-opacity=".75"/>
+    <stop offset=".45" stop-color="#1CB889" stop-opacity=".32"/>
+    <stop offset="1" stop-color="#1CB889" stop-opacity="0"/>
+  </radialGradient>
+  <radialGradient id="sideGlow" cx="0" cy="0" r="1" gradientUnits="userSpaceOnUse" gradientTransform="translate(392 640) scale(235 160)">
+    <stop offset=".7" stop-color="#1FD6A0" stop-opacity="0"/>
+    <stop offset=".86" stop-color="#1FD6A0" stop-opacity=".08"/>
+    <stop offset="1" stop-color="#1FD6A0" stop-opacity="0"/>
+  </radialGradient>
+  <filter id="lineBlur" x="-20%" y="-50%" width="140%" height="200%">
+    <feGaussianBlur stdDeviation="5"/>
+  </filter>
+  <clipPath id="cardClip">
+    <rect x="190" y="245" width="405" height="490" rx="78"/>
+  </clipPath>
+</defs>
+
+<rect id="背景" width="784" height="980" fill="#121314"/>
+
+<g id="外发光">
+  <ellipse cx="395" cy="735" rx="245" ry="95" fill="url(#bottomGlowOut)"/>
+  <ellipse cx="392" cy="640" rx="235" ry="160" fill="url(#sideGlow)"/>
+</g>
+
+<g id="卡片">
+  <rect id="卡片底" x="190" y="245" width="405" height="490" rx="78" fill="url(#cardFill)"/>
+
+  <g id="图表" clip-path="url(#cardClip)">
+    <path id="曲线下填充" d="M190,603 C240,597 270,588 300,592 C335,597 360,600 385,594 C405,589 422,470 440,470 C458,470 470,575 500,582 C530,589 565,580 595,579 L595,735 L190,735 Z" fill="url(#areaFill)"/>
+    <g id="网格线" stroke="url(#gridFade)" stroke-width="1">
+      <line x1="227" y1="600" x2="227" y2="735"/>
+      <line x1="270" y1="593" x2="270" y2="735"/>
+      <line x1="312" y1="592" x2="312" y2="735"/>
+      <line x1="355" y1="598" x2="355" y2="735"/>
+      <line x1="398" y1="590" x2="398" y2="735"/>
+      <line x1="483" y1="575" x2="483" y2="735"/>
+      <line x1="526" y1="586" x2="526" y2="735"/>
+      <line x1="569" y1="582" x2="569" y2="735"/>
+    </g>
+    <line id="峰值竖线" x1="440" y1="476" x2="440" y2="735" stroke="url(#peakLine)" stroke-width="1.5"/>
+    <ellipse id="底部光" cx="405" cy="728" rx="190" ry="70" fill="url(#bottomGlowIn)"/>
+    <path id="曲线光晕" d="M190,603 C240,597 270,588 300,592 C335,597 360,600 385,594 C405,589 422,470 440,470 C458,470 470,575 500,582 C530,589 565,580 595,579" stroke="#2FE8B3" stroke-opacity=".75" stroke-width="9" stroke-linecap="round" filter="url(#lineBlur)"/>
+    <path id="曲线" d="M190,603 C240,597 270,588 300,592 C335,597 360,600 385,594 C405,589 422,470 440,470 C458,470 470,575 500,582 C530,589 565,580 595,579" stroke="url(#curveStroke)" stroke-width="3" stroke-linecap="round"/>
+  </g>
+
+  <rect id="卡片描边" x="190.5" y="245.5" width="404" height="489" rx="77.5" stroke="url(#cardStroke)" stroke-width="1"/>
+
+  <g id="峰值点">
+    <circle cx="440" cy="468" r="70" fill="url(#peakGlow)"/>
+    <circle cx="440" cy="470" r="12" fill="#5BFFD0" fill-opacity=".35"/>
+    <circle cx="440" cy="470" r="7.5" fill="#E6FFF7"/>
+  </g>
+
+  <g id="文字" font-family="Inter, 'SF Pro Display', Helvetica, Arial, sans-serif">
+    <text id="标题" x="232" y="309" fill="#E8E8EA" font-size="13" font-weight="500" letter-spacing="1.6">REVENUE</text>
+    <text id="数值" x="230" y="381" fill="#FFFFFF" font-size="52" font-weight="500" letter-spacing="-1">48%</text>
+    <text id="说明" x="232" y="410" fill="#8E8F94" font-size="12.5" font-weight="400">growth vs last quarter</text>
+  </g>
+</g>
+</svg>

@@ -53,14 +53,6 @@ def lerp(p, q, t):
 def tent():
     W, D, H = 1.0, 1.75, 1.6
     d = []
-    # ground sheet: matte warm-grey slab with rounded corners
-    top = rounded_rect(-0.5, D + 0.32, -W - 0.4, W + 0.4, 0.3, 0)
-    bot = [(a, b, -0.12) for a, b, _ in top]
-    d.append(f'<g id="底板"><polygon points="{pts(*hull([P(*q) for q in top + bot]))}" fill="url(#slabSide)"/>')
-    d.append(f'<polygon points="{pts(*[P(*q) for q in top])}" fill="url(#slabTop)"/>')
-    inner = rounded_rect(-0.36, D + 0.18, -W - 0.26, W + 0.26, 0.2, 0)
-    d.append(f'<polygon points="{pts(*[P(*q) for q in inner])}" fill="none" stroke="#fff" stroke-opacity=".55" stroke-width="1.2"/></g>')
-
     FL, FR, F = (0, -W, 0), (0, W, 0), (0, 0, H)
     BL, BR, B = (D, -W, 0), (D, W, 0), (D, 0, H)
     # guy lines + pegs (behind the body on the far side first)
@@ -70,12 +62,6 @@ def tent():
                 f'<circle cx="{x:.1f}" cy="{y-9:.1f}" r="3" fill="{ORANGE}"/>')
     tipB, tipF = P(D + 0.02, 0, H + 0.22), P(-0.02, 0, H + 0.22)
     gB, gF = (D + 0.2, W * 0.55), (-0.36, -W * 0.55)
-    d.append('<g id="风绳">')
-    for (ga, gb), tip in ((gB, tipB),):
-        x, y = P(ga, gb, 0)
-        d.append(f'<line x1="{tip[0]:.1f}" y1="{tip[1]:.1f}" x2="{x:.1f}" y2="{y-6:.1f}" stroke="#9a8f80" stroke-width="1.3"/>' + peg(ga, gb))
-    d.append('</g>')
-
     # rear pole
     x0, y0 = P(D + 0.02, 0, H - 0.05); x1, y1 = tipB
     d.append(f'<g id="后杆"><rect x="{x1-3:.1f}" y="{y1:.1f}" width="6" height="{y0-y1:.1f}" rx="3" fill="url(#aluV)"/>'
@@ -133,10 +119,10 @@ def tent():
 
     # front pole + guy line to the front peg
     x0, y0 = P(-0.02, 0, H - 0.05); x1, y1 = tipF
-    x, y = P(*gF, 0)
-    d.append(f'<g id="前杆"><line x1="{x1:.1f}" y1="{y1:.1f}" x2="{x:.1f}" y2="{y-6:.1f}" stroke="#9a8f80" stroke-width="1.3"/>{peg(*gF)}'
-             f'<rect x="{x1-3.5:.1f}" y="{y1:.1f}" width="7" height="{y0-y1:.1f}" rx="3.5" fill="url(#aluV)"/>'
+    d.append(f'<g id="前杆"><rect x="{x1-3.5:.1f}" y="{y1:.1f}" width="7" height="{y0-y1:.1f}" rx="3.5" fill="url(#aluV)"/>'
              f'<circle cx="{x1:.1f}" cy="{y1:.1f}" r="6" fill="url(#cap)"/></g>')
+    # centre the object in the 512 canvas
+    return ['<g transform="translate(256 262) scale(1.22) translate(-255 -228)">'] + d + ['</g>']
     return d
 
 
@@ -155,54 +141,84 @@ TENT_DEFS = f'''
 <linearGradient id="aluD" x1="0" y1="0" x2="1" y2="1">{ALU}</linearGradient>
 '''
 
-PERSON_DEFS = f'''
-<linearGradient id="aluSide" x1="0" y1="0" x2="1" y2="0">{ALU}</linearGradient>
-<radialGradient id="puckTop" cx="40%" cy="35%" r="70%"><stop offset="0" stop-color="#f1ede6"/><stop offset="1" stop-color="#d4cdc1"/></radialGradient>
-<radialGradient id="ao" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#6b5a48" stop-opacity=".42"/><stop offset="1" stop-color="#6b5a48" stop-opacity="0"/></radialGradient>
-<radialGradient id="body" cx="34%" cy="22%" r="85%"><stop offset="0" stop-color="#ecc396"/><stop offset=".45" stop-color="#cf9764"/><stop offset="1" stop-color="#9a6438"/></radialGradient>
-<radialGradient id="bodyRim" cx="50%" cy="0%" r="100%"><stop offset=".7" stop-color="#5e3a1e" stop-opacity="0"/><stop offset="1" stop-color="#5e3a1e" stop-opacity=".35"/></radialGradient>
-<radialGradient id="head" cx="36%" cy="30%" r="72%"><stop offset="0" stop-color="#fffdf9"/><stop offset=".55" stop-color="#f1ebe1"/><stop offset="1" stop-color="#c9bfae"/></radialGradient>
-<radialGradient id="gloss" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".95"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
-<linearGradient id="neck" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#efe8dc"/><stop offset="1" stop-color="#b9ad9a"/></linearGradient>
+PERSON_DEFS = f"""
+<radialGradient id="skin" cx="34%" cy="30%" r="75%"><stop offset="0" stop-color="#fbeee0"/><stop offset=".55" stop-color="#efd9c2"/><stop offset="1" stop-color="#c9a988"/></radialGradient>
+<radialGradient id="hair" cx="40%" cy="25%" r="80%"><stop offset="0" stop-color="#7a5a42"/><stop offset=".6" stop-color="#4b3526"/><stop offset="1" stop-color="#2e2018"/></radialGradient>
+<linearGradient id="jacket" x1="0" y1="0" x2="1" y2=".4"><stop offset="0" stop-color="#e9bf8f"/><stop offset=".5" stop-color="#cf9563"/><stop offset="1" stop-color="#9f6739"/></linearGradient>
+<linearGradient id="jacketSide" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b47a48"/><stop offset="1" stop-color="#875427"/></linearGradient>
+<linearGradient id="sleeveL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#f0cb9f"/><stop offset="1" stop-color="#c58a57"/></linearGradient>
+<linearGradient id="sleeveR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#b37946"/><stop offset="1" stop-color="#7f4f27"/></linearGradient>
+<linearGradient id="pantL" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#a8a196"/><stop offset="1" stop-color="#857d72"/></linearGradient>
+<linearGradient id="pantR" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#857d72"/><stop offset="1" stop-color="#635c53"/></linearGradient>
+<linearGradient id="shoe" x1="0" y1="0" x2="0" y2="1"><stop offset="0" stop-color="#fbf8f2"/><stop offset="1" stop-color="#d9d2c6"/></linearGradient>
+<linearGradient id="sole" x1="0" y1="0" x2="1" y2="0"><stop offset="0" stop-color="#e6ddcf"/><stop offset="1" stop-color="#b4aa9b"/></linearGradient>
+<linearGradient id="alu" x1="0" y1="0" x2="1" y2="0">{ALU}</linearGradient>
 <radialGradient id="dot" cx="35%" cy="30%" r="70%"><stop offset="0" stop-color="#ffb184"/><stop offset=".5" stop-color="{ORANGE}"/><stop offset="1" stop-color="#b2461a"/></radialGradient>
-'''
+<radialGradient id="gloss" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#fff" stop-opacity=".9"/><stop offset="1" stop-color="#fff" stop-opacity="0"/></radialGradient>
+<radialGradient id="occl" cx="50%" cy="50%" r="50%"><stop offset="0" stop-color="#4a2c14" stop-opacity=".35"/><stop offset="1" stop-color="#4a2c14" stop-opacity="0"/></radialGradient>
+"""
 
 
 def person():
-    cx = 256
-    py, prx, pry, ph = 380, 138, 50, 30        # puck top centre, radii, height
-    d = ['<g id="底座">',
-         f'<path d="M{cx-prx},{py} L{cx-prx},{py+ph} A{prx},{pry} 0 0 0 {cx+prx},{py+ph} L{cx+prx},{py} Z" fill="url(#aluSide)"/>',
-         f'<path d="M{cx-prx},{py+ph-3} A{prx},{pry} 0 0 0 {cx+prx},{py+ph-3}" fill="none" stroke="#7d8082" stroke-opacity=".5" stroke-width="1.2"/>',
-         f'<ellipse cx="{cx}" cy="{py}" rx="{prx}" ry="{pry}" fill="url(#puckTop)"/>',
-         f'<ellipse cx="{cx}" cy="{py}" rx="{prx-1}" ry="{pry-1}" fill="none" stroke="#fff" stroke-width="2"/>',
-         f'<ellipse cx="{cx}" cy="{py}" rx="{prx-16}" ry="{pry-7}" fill="none" stroke="#bdb4a6" stroke-opacity=".6" stroke-width="1.2"/>',
-         # Braun orange indicator on the front of the puck
-         f'<ellipse cx="{cx-44}" cy="{py+pry-2+ph*0.48:.0f}" rx="7" ry="6" fill="url(#dot)"/>',
-         f'<ellipse cx="{cx-46}" cy="{py+pry-4+ph*0.48:.0f}" rx="2.5" ry="1.6" fill="#fff" opacity=".7"/>',
-         '</g>']
-    # contact occlusion of the bust on the puck
-    d.append(f'<ellipse id="接触阴影" cx="{cx+6}" cy="{py+2}" rx="122" ry="40" fill="url(#ao)"/>')
-    by, brx, bry = 376, 108, 38                  # base ellipse of the shoulders
-    sh = 272                                     # shoulder top
-    body = (f'M{cx-brx},{by} C{cx-brx},{sh+18} {cx-84},{sh} {cx},{sh} '
-            f'C{cx+84},{sh} {cx+brx},{sh+18} {cx+brx},{by} A{brx},{bry} 0 0 1 {cx-brx},{by} Z')
-    d += ['<g id="身体">',
-          f'<path d="{body}" fill="url(#body)"/>',
-          f'<path d="{body}" fill="url(#bodyRim)"/>',
-          f'<path d="M{cx-brx+3},{by} A{brx-3},{bry-3} 0 0 0 {cx+brx-3},{by}" fill="none" stroke="#f3d3ae" stroke-opacity=".6" stroke-width="1.5"/>',
-          # soft highlight on the left shoulder
-          f'<ellipse cx="{cx-46}" cy="{sh+30}" rx="30" ry="14" transform="rotate(-24 {cx-46} {sh+30})" fill="url(#gloss)" opacity=".35"/>',
-          # soft V seam at the neckline
-          f'<path d="M{cx-30},{sh+6} Q{cx},{sh+30} {cx+30},{sh+6}" fill="none" stroke="#9a6438" stroke-opacity=".45" stroke-width="2"/>',
+    """full-body vinyl-toy figure, three-quarter front-left, no base"""
+    d = []
+    # legs (right leg slightly behind)
+    d += ['<g id="腿">',
+          '<path d="M262,330 L298,330 L296,446 Q296,454 288,454 L270,454 Q262,454 262,446 Z" fill="url(#pantR)"/>',
+          '<path d="M214,326 L256,326 L254,452 Q254,460 246,460 L224,460 Q216,460 216,452 Z" fill="url(#pantL)"/>',
+          '<path d="M236,334 L236,452" stroke="#f1ece4" stroke-opacity=".25" stroke-width="2"/>',
           '</g>']
-    hy, hr = 208, 56
+    # shoes, toes turned toward lower-left
+    d += ['<g id="鞋">',
+          '<path d="M262,446 L300,446 Q306,446 306,454 L306,462 L252,462 Q250,452 262,446 Z" fill="url(#shoe)"/>',
+          '<rect x="250" y="460" width="58" height="8" rx="4" fill="url(#sole)"/>',
+          '<path d="M216,450 L258,450 Q262,450 262,458 L262,468 L196,468 Q194,456 216,450 Z" fill="url(#shoe)"/>',
+          '<rect x="193" y="466" width="72" height="9" rx="4.5" fill="url(#sole)"/>',
+          '<circle cx="245" cy="459" r="3" fill="url(#dot)"/>',
+          '</g>']
+    # back arm (right side, shaded)
+    d += ['<g id="右臂">',
+          '<path d="M318,190 Q340,196 340,224 L338,318 Q338,332 326,332 Q314,332 314,318 L312,210 Z" fill="url(#sleeveR)"/>',
+          '<circle cx="326" cy="338" r="13" fill="url(#skin)"/>',
+          '</g>']
+    # torso: puffer-style jacket with a side panel for volume
+    jacket = 'M206,186 Q256,170 312,184 Q326,188 326,206 L320,322 Q318,340 298,340 L214,340 Q194,340 192,322 L188,210 Q188,192 206,186 Z'
+    d += ['<g id="外套">',
+          f'<path d="{jacket}" fill="url(#jacket)"/>',
+          '<path d="M300,188 Q326,190 326,206 L320,322 Q318,340 298,340 L290,340 Q306,330 306,312 L310,206 Q310,194 300,188 Z" fill="url(#jacketSide)"/>',
+          # quilting seams
+          '<path d="M192,248 Q250,258 322,246" fill="none" stroke="#8d5a2e" stroke-opacity=".35" stroke-width="2"/>',
+          '<path d="M194,292 Q250,302 320,290" fill="none" stroke="#8d5a2e" stroke-opacity=".35" stroke-width="2"/>',
+          '<path d="M194,250 Q250,260 322,248" fill="none" stroke="#f6d6ad" stroke-opacity=".45" stroke-width="1.2" transform="translate(0 3)"/>',
+          '<path d="M196,294 Q250,304 320,292" fill="none" stroke="#f6d6ad" stroke-opacity=".45" stroke-width="1.2" transform="translate(0 3)"/>',
+          # hem band
+          '<path d="M193,318 Q256,330 320,318 L320,322 Q318,340 298,340 L214,340 Q194,340 192,322 Z" fill="#8d5a2e" opacity=".35"/>',
+          # brushed-aluminium zip with orange pull, set left of centre for the 3/4 turn
+          '<path d="M246,192 Q244,260 246,338" fill="none" stroke="url(#alu)" stroke-width="3"/>',
+          '<rect x="241" y="214" width="9" height="16" rx="4" fill="url(#alu)"/>',
+          '<circle cx="245.5" cy="234" r="4" fill="url(#dot)"/>',
+          # stand collar
+          '<path d="M214,184 Q252,170 300,182 L298,198 Q252,188 216,200 Z" fill="#b97f4b"/>',
+          '<path d="M214,184 Q252,170 300,182" fill="none" stroke="#f3cfa3" stroke-width="2" stroke-linecap="round"/>',
+          '<ellipse cx="226" cy="214" rx="26" ry="12" transform="rotate(-12 226 214)" fill="url(#gloss)" opacity=".35"/>',
+          '</g>']
+    # front arm (left side, lit)
+    d += ['<g id="左臂">',
+          '<path d="M196,192 Q168,198 168,226 L170,316 Q170,330 183,330 Q196,330 196,316 L200,212 Z" fill="url(#sleeveL)"/>',
+          '<path d="M170,300 Q183,306 196,300" fill="none" stroke="#9f6739" stroke-opacity=".45" stroke-width="2"/>',
+          '<circle cx="183" cy="337" r="13.5" fill="url(#skin)"/>',
+          '</g>']
+    # neck, head and hair
     d += ['<g id="头部">',
-          f'<rect x="{cx-18}" y="{sh-14}" width="36" height="22" rx="9" fill="url(#neck)"/>',
-          f'<ellipse cx="{cx+6}" cy="{sh+4}" rx="44" ry="12" fill="url(#ao)"/>',
-          f'<circle cx="{cx}" cy="{hy}" r="{hr}" fill="url(#head)"/>',
-          f'<ellipse cx="{cx-24}" cy="{hy-28}" rx="20" ry="13" transform="rotate(-30 {cx-24} {hy-28})" fill="url(#gloss)" opacity=".9"/>',
-          f'<circle cx="{cx}" cy="{hy}" r="{hr-.8}" fill="none" stroke="#fff" stroke-opacity=".5" stroke-width="1.2"/>',
+          '<rect x="240" y="150" width="34" height="34" rx="12" fill="url(#skin)"/>',
+          '<ellipse cx="258" cy="180" rx="30" ry="8" fill="url(#occl)"/>',
+          '<circle cx="254" cy="112" r="58" fill="url(#skin)"/>',
+          # ear on the far side
+          '<ellipse cx="308" cy="118" rx="9" ry="14" fill="#e2c3a3"/>',
+          # hair: rounded cap swept to the back-right
+          '<path d="M198,104 Q196,52 252,48 Q312,46 316,104 Q318,124 310,132 Q308,104 290,92 Q262,100 226,90 Q208,96 200,116 Z" fill="url(#hair)"/>',
+          '<path d="M216,70 Q240,54 270,58" fill="none" stroke="#a07a5c" stroke-opacity=".6" stroke-width="3" stroke-linecap="round"/>',
+          '<ellipse cx="226" cy="128" rx="16" ry="12" fill="url(#gloss)" opacity=".55"/>',
           '</g>']
     return d
 

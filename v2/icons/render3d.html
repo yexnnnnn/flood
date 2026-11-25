@@ -17,16 +17,16 @@
 <script id="fs" type="x-shader/x-fragment">
 precision highp float;
 uniform vec2 R;
-uniform int SCENE;   // 0 = tent, 1 = person
-#define PI 3.14159265
+uniform int SCENE;      // 0 = tent, 1 = person
+uniform vec2 TILE;      // sub-pixel offset for progressive supersampling
 
-// ---------- primitives
+// ---------------------------------------------------------------- primitives
 float smin(float a,float b,float k){float h=clamp(.5+.5*(b-a)/k,0.,1.);return mix(b,a,h)-k*h*(1.-h);}
+float smax(float a,float b,float k){return -smin(-a,-b,k);}
 float sdCapsule(vec3 p,vec3 a,vec3 b,float r){vec3 pa=p-a,ba=b-a;float h=clamp(dot(pa,ba)/dot(ba,ba),0.,1.);return length(pa-ba*h)-r;}
-float sdRoundBox(vec3 p,vec3 b,float r){vec3 q=abs(p)-b+r;return length(max(q,0.))+min(max(q.x,max(q.y,q.z)),0.)-r;}
 float sdEllipsoid(vec3 p,vec3 r){float k0=length(p/r);float k1=length(p/(r*r));return k0*(k0-1.)/k1;}
-float sdTorusX(vec3 p,vec2 t){vec2 q=vec2(length(p.yz)-t.x,p.x);return length(q)-t.y;}
-float sdTri(vec2 p,vec2 q){            // isosceles triangle, tip at origin, base at y=q.y
+float sdCyl(vec3 p,float r,float h){vec2 d=abs(vec2(length(p.xz),p.y))-vec2(r,h);return min(max(d.x,d.y),0.)+length(max(d,0.));}
+float sdTri(vec2 p,vec2 q){
   p.x=abs(p.x);
   vec2 a=p-q*clamp(dot(p,q)/dot(q,q),0.,1.);
   vec2 b=p-q*vec2(clamp(p.x/q.x,0.,1.),1.);
@@ -37,185 +37,167 @@ float sdTri(vec2 p,vec2 q){            // isosceles triangle, tip at origin, bas
 float extrude(float d,float z,float h){vec2 w=vec2(d,abs(z)-h);return min(max(w.x,w.y),0.)+length(max(w,0.));}
 vec2 U(vec2 a,vec2 b){return a.x<b.x?a:b;}
 
-// materials
-#define M_CANVAS 1.
-#define M_INSIDE 2.
-#define M_CREAM  3.
-#define M_ALU    4.
-#define M_WOOD   5.
-#define M_LEATHER 6.
-#define M_SKIN   10.
-#define M_HAIR   11.
-#define M_JACKET 12.
-#define M_PANTS  13.
-#define M_SHOE   14.
-#define M_SOLE   15.
-#define M_EYE    16.
+#define M_FABRIC  1.
+#define M_FLOOR   2.
+#define M_INSIDE  3.
+#define M_ALU     4.
+#define M_ORANGE  5.
+#define M_ROLL    6.
+#define M_STRAP   7.
+#define M_CERAMIC 8.
+#define M_STONE   9.
+#define M_BLACK  10.
 
-// ---------- tent: ridge along z, door on +z
-const float TH=1.42, TW=1.08, TD=1.12;
+// ---------------------------------------------------------------- tent
+// fabric ridge along z, door on +z, aluminium A-frames just outside each gable
+const float TH=1.36, TW=1.02, TD=.98;
 vec2 tent(vec3 p){
-  float r=.075;
+  float r=.03;
   vec3 q=p-vec3(0.,r,0.);
-  float body=extrude(sdTri(vec2(q.x,TH-q.y),vec2(TW,TH)),q.z,TD)-r;
-  // fabric sags a little between the two poles
   float zz=clamp(q.z/TD,-1.,1.);
-  body+=.045*(1.-zz*zz)*smoothstep(.15,1.2,q.y);
-  // door cavity
-  float dr=extrude(sdTri(vec2(q.x,1.0-q.y),vec2(.5,1.0)),q.z-TD,.62)-.035;
-  float shell=max(body,-dr);
-  vec2 res=vec2(shell,(-dr>body-.002)?M_INSIDE:M_CANVAS);
-  // ridge piping + bottom hems
-  // rolled door flap on the right edge, with two leather ties
-  vec3 a=vec3(.06,1.0,TD+.06), b=vec3(.58,.09,TD+.06);
-  res=U(res,vec2(sdCapsule(p,a,b,.082),M_CREAM));
+  float tri=sdTri(vec2(q.x,TH-q.y),vec2(TW,TH));
+  // panels pulled taut between the frames: slight inward tension curve
+  tri+=.05*(1.-zz*zz)*smoothstep(.05,.9,q.y)*smoothstep(TH,TH-.25,q.y);
+  float body=extrude(tri,q.z,TD)-r;
+  // door: tall rounded opening on the front gable
+  float dtri=sdTri(vec2(q.x,1.06-q.y),vec2(.5,1.06))-.02;
+  float door=extrude(dtri,q.z-TD,.55);
+  float shell=max(body,-door);
+  float m=(-door>body-.003)?M_INSIDE:(q.y<.17?M_FLOOR:M_FABRIC);
+  vec2 res=vec2(shell,m);
+  // seam groove where the bathtub floor meets the fly
+  if(m==M_FLOOR||m==M_FABRIC) res.x+=.004*smoothstep(.012,0.,abs(q.y-.17));
+  // aluminium A-frame on each gable + ridge pole
   for(int i=0;i<2;i++){
-    float t=i==0?.32:.68;
-    vec3 c=mix(a,b,t);
-    vec3 ax=normalize(b-a);
-    vec3 d=p-c; float along=dot(d,ax); vec3 rad=d-ax*along;
-    float ring=length(vec2(length(rad)-.088,along))-.022;
-    res=U(res,vec2(ring,M_LEATHER));
+    float z=i==0?TD+.07:-TD-.07;
+    vec3 apex=vec3(0.,TH+.1,z);
+    res=U(res,vec2(sdCapsule(p,apex,vec3(-TW-.07,.02,z),.028),M_ALU));
+    res=U(res,vec2(sdCapsule(p,apex,vec3( TW+.07,.02,z),.028),M_ALU));
+    res=U(res,vec2(length(p-apex)-.055,M_ALU));                         // hub
+    // orange tensioners at the feet
+    res=U(res,vec2(sdCyl(p-vec3(-TW-.07,.035,z),.05,.035)-.008,M_ORANGE));
+    res=U(res,vec2(sdCyl(p-vec3( TW+.07,.035,z),.05,.035)-.008,M_ORANGE));
   }
-  // poles and wooden caps front/back
-  for(int i=0;i<2;i++){
-    float z=i==0?TD+.02:-TD-.02;
-    res=U(res,vec2(sdCapsule(p,vec3(0.,TH,z),vec3(0.,TH+.34,z),.032),M_ALU));
-    res=U(res,vec2(length(p-vec3(0.,TH+.36,z))-.075,M_WOOD));
-  }
+  res=U(res,vec2(sdCapsule(p,vec3(0.,TH+.1,-TD-.07),vec3(0.,TH+.1,TD+.07),.022),M_ALU));
+  // rolled door panel along the right edge, one leather strap
+  vec3 a=vec3(.07,1.04,TD+.05), b=vec3(.54,.14,TD+.05);
+  res=U(res,vec2(sdCapsule(p,a,b,.062),M_ROLL));
+  vec3 ax=normalize(b-a); vec3 c=mix(a,b,.42); vec3 d=p-c;
+  float al=dot(d,ax); float ring=length(vec2(length(d-ax*al)-.066,al))-.016;
+  res=U(res,vec2(ring,M_STRAP));
+  // orange zip pull at the top of the door
+  res=U(res,vec2(sdCapsule(p,vec3(-.03,.98,TD+.045),vec3(-.06,.88,TD+.06),.018),M_ORANGE));
   return res;
 }
 
-// ---------- person: facing +z
+// ---------------------------------------------------------------- person glyph
+// sculpted shoulders + floating ceramic head on an aluminium pin
 vec2 person(vec3 p){
-  vec3 s=vec3(abs(p.x),p.y,p.z);          // mirrored for limbs
-  // shoes
-  vec2 res=vec2(sdRoundBox(s-vec3(.19,.09,.07),vec3(.13,.08,.22),.075),M_SHOE);
-  res=U(res,vec2(sdRoundBox(s-vec3(.19,.03,.07),vec3(.14,.032,.235),.03),M_SOLE));
-  // legs
-  res=U(res,vec2(sdCapsule(s,vec3(.18,.2,0.),vec3(.17,.78,0.),.145),M_PANTS));
-  // jacket body: puffy, slightly wider than deep, quilted bands
-  vec3 bq=p-vec3(0.,1.2,0.); bq.z*=1.18;
-  float jacket=sdCapsule(bq,vec3(0.,-.18,0.),vec3(0.,.12,0.),.4);
-  jacket=smin(jacket,sdCapsule(s,vec3(.38,1.5,0.),vec3(.5,.98,.05),.13),.08);   // arms
-  float band=cos((p.y-.86)*PI*3.3);
-  jacket+=.016*smoothstep(.82,1.,band);
-  res=U(res,vec2(jacket,M_JACKET));
-  // collar
-  float collar=length(vec2(length(p.xz*vec2(1.,1.1))-.135,p.y-1.66))-.08;
-  res=U(res,vec2(smin(collar,jacket,.05),M_JACKET));
-  // zip: thin aluminium strip down the front
-  float zip=sdRoundBox(p-vec3(0.,1.2,.0),vec3(.014,.46,.6),.01);
-  zip=max(zip,-(sdCapsule(bq,vec3(0.,-.18,0.),vec3(0.,.12,0.),.385)));
-  res=U(res,vec2(max(zip,jacket-.012),M_ALU));
-  // hands
-  res=U(res,vec2(length(s-vec3(.52,.86,.08))-.11,M_SKIN));
-  // neck + head
-  vec3 hc=vec3(0.,2.1,.02);
-  float head=length(p-hc)-.43;
-  head=smin(head,sdCapsule(p,vec3(0.,1.6,0.),vec3(0.,1.85,0.),.12),.06);
-  head=smin(head,sdEllipsoid(s-vec3(.42,2.08,0.),vec3(.06,.1,.08)),.03);        // ears
-  res=U(res,vec2(head,M_SKIN));
-  // hair: cap with a hairline that sits higher at the front
-  vec3 h=p-hc;
-  float hair=max(length(h-vec3(0.,.035,-.025))-.452,(.38*h.z-h.y+.02));
-  hair=max(hair,-(length(h-vec3(0.,-.12,.0))-.36));
-  res=U(res,vec2(hair,M_HAIR));
-  // eyes
-  res=U(res,vec2(sdEllipsoid(s-vec3(.15,2.1,.41),vec3(.042,.062,.03)),M_EYE));
+  // shoulders: ellipsoid cut flat at the base, soft bevelled bottom edge
+  vec3 b=p-vec3(0.,.04,0.);
+  float sh=sdEllipsoid(b,vec3(.84,.7,.56));
+  sh=smax(sh,-(p.y-.0),.05);
+  vec2 res=vec2(sh,M_STONE);
+  // brushed aluminium band at the base
+  float band=max(sdEllipsoid(b,vec3(.845,.705,.565)),abs(p.y-.06)-.035);
+  res=U(res,vec2(band,M_ALU));
+  // orange indicator
+  res=U(res,vec2(length(p-vec3(-.27,.36,.45))-.036,M_ORANGE));
+  // pin + head
+  res=U(res,vec2(sdCapsule(p,vec3(0.,.6,0.),vec3(0.,.9,0.),.05),M_ALU));
+  res=U(res,vec2(length(p-vec3(0.,1.16,0.))-.35,M_CERAMIC));
   return res;
 }
 
 vec2 map(vec3 p){ return SCENE==0?tent(p):person(p); }
 
 vec3 nrm(vec3 p){
-  vec2 e=vec2(1.,-1.)*.0007;
+  vec2 e=vec2(1.,-1.)*.0006;
   return normalize(e.xyy*map(p+e.xyy).x+e.yyx*map(p+e.yyx).x+e.yxy*map(p+e.yxy).x+e.xxx*map(p+e.xxx).x);
 }
-float shadow(vec3 ro,vec3 rd){
-  float res=1.,t=.015;
-  for(int i=0;i<64;i++){float h=map(ro+rd*t).x;res=min(res,9.*h/t);t+=clamp(h,.01,.25);if(res<.002||t>6.)break;}
+float softShadow(vec3 ro,vec3 rd,float k){
+  float res=1.,t=.02;
+  for(int i=0;i<72;i++){float h=map(ro+rd*t).x;res=min(res,k*h/t);t+=clamp(h,.01,.2);if(res<.001||t>6.)break;}
   res=clamp(res,0.,1.);return res*res*(3.-2.*res);
 }
 float ao(vec3 p,vec3 n){
   float o=0.,s=1.;
-  for(int i=0;i<6;i++){float h=.012+.07*float(i);o+=(h-map(p+n*h).x)*s;s*=.82;}
-  return clamp(1.-2.2*o,0.,1.);
+  for(int i=0;i<7;i++){float h=.01+.06*float(i);o+=(h-map(p+n*h).x)*s;s*=.8;}
+  return clamp(1.-1.8*o,0.,1.);
 }
 vec3 lin(vec3 c){return pow(c,vec3(2.2));}
+float hash(vec3 p){return fract(sin(dot(p,vec3(12.9898,78.233,37.719)))*43758.5453);}
+
+// studio: large softbox top-left-front, white bounce right, faint rim from behind
+vec3 env(vec3 d){
+  float soft=smoothstep(.55,.95,dot(d,normalize(vec3(-.6,.75,.45))));
+  float bounce=smoothstep(.3,.95,dot(d,normalize(vec3(.9,.15,.35))));
+  float rim=smoothstep(.6,.98,dot(d,normalize(vec3(.3,.4,-.9))));
+  vec3 c=mix(vec3(.30,.29,.28),vec3(.62,.61,.60),smoothstep(-.4,.8,d.y));
+  return c+soft*vec3(2.6,2.5,2.4)+bounce*vec3(.55)+rim*vec3(.8);
+}
 
 vec3 shade(vec3 p,vec3 n,vec3 rd,float m){
-  vec3 alb=vec3(.8); float rough=.6, metal=0., sss=0.;
-  if(m==M_CANVAS){alb=lin(vec3(.93,.52,.30));rough=.75;
-     // fine canvas weave
-     float w=sin(p.x*260.)*sin(p.y*260.+p.z*260.);
-     alb*=1.-.035*w; }
-  else if(m==M_INSIDE){alb=lin(vec3(.55,.30,.18));rough=.9;}
-  else if(m==M_CREAM){alb=lin(vec3(.95,.91,.83));rough=.65;}
-  else if(m==M_ALU){alb=lin(vec3(.86,.87,.88));rough=.28;metal=1.;}
-  else if(m==M_WOOD){alb=lin(vec3(.80,.58,.38));rough=.45;
-     alb*=.9+.1*sin(p.y*90.+sin(p.x*40.)*2.);}
-  else if(m==M_LEATHER){alb=lin(vec3(.55,.33,.2));rough=.5;}
-  else if(m==M_SKIN){alb=lin(vec3(.97,.82,.69));rough=.5;sss=1.;
-     // soft cheek blush
-     vec3 c=vec3(abs(p.x),p.y,p.z)-vec3(.21,1.99,.37);
-     alb=mix(alb,lin(vec3(.98,.68,.6)),.35*exp(-dot(c,c)*70.));}
-  else if(m==M_HAIR){alb=lin(vec3(.30,.19,.13));rough=.82;
-     alb*=.85+.15*sin(atan(p.x,p.z)*60.+p.y*8.);}
-  else if(m==M_JACKET){alb=lin(vec3(.94,.53,.29));rough=.68;}
-  else if(m==M_PANTS){alb=lin(vec3(.33,.37,.44));rough=.8;}
-  else if(m==M_SHOE){alb=lin(vec3(.96,.95,.93));rough=.5;}
-  else if(m==M_SOLE){alb=lin(vec3(.88,.83,.75));rough=.7;}
-  else if(m==M_EYE){alb=lin(vec3(.1,.08,.07));rough=.12;}
+  vec3 alb=vec3(.8); float rough=.6, metal=0., f0=.04;
+  if(m==M_FABRIC){alb=lin(vec3(.93,.91,.87));rough=.78;
+     float w=sin(dot(p,vec3(1.,0.,.6))*520.)*sin(dot(p,vec3(0.,1.,-.4))*520.);   // ripstop weave
+     float grid=max(smoothstep(.96,1.,sin(p.y*42.)),smoothstep(.96,1.,sin((p.z+p.x*.3)*42.)));
+     alb*=1.-.025*w-.035*grid;}
+  else if(m==M_FLOOR){alb=lin(vec3(.56,.54,.51));rough=.6;}
+  else if(m==M_INSIDE){alb=lin(vec3(.48,.45,.42));rough=.9;}
+  else if(m==M_ROLL){alb=lin(vec3(.86,.84,.80));rough=.8;}
+  else if(m==M_STRAP){alb=lin(vec3(.42,.27,.17));rough=.45;}
+  else if(m==M_ALU){alb=lin(vec3(.90,.90,.91));rough=.24;metal=1.;}
+  else if(m==M_ORANGE){alb=lin(vec3(.93,.38,.13));rough=.35;}
+  else if(m==M_CERAMIC){alb=lin(vec3(.95,.94,.91));rough=.18;}
+  else if(m==M_STONE){alb=lin(vec3(.80,.77,.72));rough=.62;
+     alb*=1.-.03*hash(floor(p*180.));}                       // fine mineral grain
+  else if(m==M_BLACK){alb=lin(vec3(.08));rough=.3;}
 
-  vec3 L=normalize(vec3(-.55,.9,.5));
-  float sh=shadow(p+n*.003,L);
+  vec3 L=normalize(vec3(-.6,.75,.45));
+  float sh=softShadow(p+n*.004,L,5.);
   float o=ao(p,n);
-  float dif=clamp(dot(n,L),0.,1.);
-  float wrap=clamp((dot(n,L)+.35)/1.35,0.,1.);
-  vec3 sky=mix(lin(vec3(.70,.66,.62)),vec3(1.,.99,.97),.5+.5*n.y);
+  float ndl=clamp(dot(n,L),0.,1.);
+  float wrap=clamp((dot(n,L)+.25)/1.25,0.,1.);
+  vec3 refl=reflect(rd,n);
+  float nv=clamp(dot(n,-rd),0.,1.);
+  vec3 F=mix(vec3(f0),alb,metal);
+  F=F+(max(vec3(1.-rough),F)-F)*pow(1.-nv,5.);
+  // diffuse: soft key + hemisphere + bounce
+  vec3 hemi=mix(vec3(.42,.41,.40),vec3(.92,.91,.90),.5+.5*n.y);
+  vec3 dif=hemi*.46*o + vec3(1.,.98,.95)*mix(ndl,wrap,.3)*sh*1.42
+          + vec3(.95)*.22*clamp(dot(n,normalize(vec3(.9,.15,.35))),0.,1.)*o;
+  // specular: blurred environment by roughness (approx.) + key highlight
+  vec3 e=mix(env(refl),vec3(.7),rough*rough*.85);
   vec3 h=normalize(L-rd);
-  float gloss=mix(220.,10.,rough);
-  float spe=pow(clamp(dot(n,h),0.,1.),gloss)*(gloss+8.)/40.*(1.-rough*.85);
-  float fre=pow(1.-clamp(dot(n,-rd),0.,1.),4.);
-  vec3 key=vec3(1.,.97,.92)*1.15;
-  vec3 col;
-  if(metal>.5){
-    vec3 rf=reflect(rd,n);
-    float env=smoothstep(-.3,.7,rf.y)*.8+.2;
-    env*=.82+.18*sin(rf.x*9.);                 // studio softbox bands
-    col=alb*(env*o*.95+dif*sh*.4)+spe*sh*1.3;
-  }else{
-    vec3 d=mix(vec3(dif),vec3(wrap)*vec3(1.,.82,.72),sss*.55);
-    col=alb*(.52*sky*o+d*sh*key);
-    col+=alb*.18*clamp(dot(n,normalize(vec3(.8,.2,.4))),0.,1.)*o;   // fill from the right
-    col+=spe*sh*key*.55;
-    col+=fre*.22*o*sky*(1.-rough*.5);
-  }
+  float g=exp2(10.*(1.-rough)+1.);
+  float spec=pow(clamp(dot(n,h),0.,1.),g)*(g+2.)/8.;
+  vec3 spc=F*(e*mix(1.,o,.7)+spec*sh*.6);
+  vec3 col=metal>.5?spc+alb*.04*dif:alb*dif*(1.-F)+spc*(1.-rough*.6);
+  if(m==M_ALU){                                              // brushed streaks
+    float br=hash(vec3(floor(p.x*900.),floor(p.y*25.),floor(p.z*900.)));
+    col*=.94+.08*br;}
   return col;
 }
 
+vec3 aces(vec3 x){return clamp((x*(2.51*x+.03))/(x*(2.43*x+.59)+.14),0.,1.);}
+
 void main(){
-  vec3 ta=SCENE==0?vec3(0.,.8,0.):vec3(0.,1.27,0.);
-  vec3 dir=SCENE==0?normalize(vec3(-.38,.58,1.4)):normalize(vec3(-.75,.45,1.35));
-  float dist=14., half_=SCENE==0?1.72:1.5;
+  vec3 ta=SCENE==0?vec3(0.,.7,0.):vec3(0.,.76,0.);
+  vec3 dir=normalize(vec3(-.72,.52,1.));
+  float dist=16., half_=SCENE==0?1.72:1.08;
   vec3 ro=ta+dir*dist;
   vec3 fw=normalize(ta-ro), rt=normalize(cross(fw,vec3(0.,1.,0.))), up=cross(rt,fw);
-  vec3 acc=vec3(0.); float cov=0.;
-  for(int sx=0;sx<2;sx++)for(int sy=0;sy<2;sy++){
-    vec2 o=(vec2(float(sx),float(sy))+.5)/2.-.5;
-    vec2 uv=(2.*(gl_FragCoord.xy+o)-R)/R.y;
-    vec3 rd=normalize(fw*(dist/half_)+uv.x*rt+uv.y*up);
-    float t=8.;bool hit=false;vec2 h;
-    for(int i=0;i<220;i++){h=map(ro+rd*t);if(h.x<.0004*t){hit=true;break;}t+=h.x*.85;if(t>22.)break;}
-    if(hit){vec3 p=ro+rd*t;acc+=shade(p,nrm(p),rd,h.y);cov+=1.;}
-  }
-  if(cov<.5){gl_FragColor=vec4(0.);return;}
-  vec3 col=acc/cov;
-  col=1.-exp(-col*1.25);                      // soft filmic roll-off
+  vec2 uv=(2.*(gl_FragCoord.xy+TILE)-R)/R.y;
+  vec3 rd=normalize(fw*(dist/half_)+uv.x*rt+uv.y*up);
+  float t=10.;bool hit=false;vec2 h;
+  for(int i=0;i<260;i++){h=map(ro+rd*t);if(h.x<.00025*t){hit=true;break;}t+=h.x*.8;if(t>24.)break;}
+  if(!hit){gl_FragColor=vec4(0.);return;}
+  vec3 pp=ro+rd*t;
+  vec3 col=shade(pp,nrm(pp),rd,h.y);
+  col=aces(col*.95);
   col=pow(col,vec3(1./2.2));
-  float a=cov/4.;
-  gl_FragColor=vec4(col*a,a);
+  gl_FragColor=vec4(col,1.);
 }
 </script>
 <script>
@@ -223,13 +205,13 @@ const bare = location.hash.includes('bare');
 if (bare) { document.body.classList.add('bare'); document.documentElement.style.background = 'transparent'; }
 const scenes = location.hash.includes('person') ? [1] : location.hash.includes('tent') ? [0] : [0, 1];
 const N = +((location.hash.match(/n=(\d+)/)||[])[1] || 1024);
+const SS = +((location.hash.match(/ss=(\d+)/)||[])[1] || 3);     // SS×SS samples per pixel
 const fsrc = document.getElementById('fs').textContent;
 window.DONE = 0;
 for (const sc of scenes) {
-  const c = document.createElement('canvas'); c.width = c.height = N; c.id = 'c' + sc;
-  if (bare) { c.style.width = c.style.height = N + 'px'; }
-  document.getElementById('row').appendChild(c);
-  const gl = c.getContext('webgl', { alpha: true, premultipliedAlpha: true, preserveDrawingBuffer: true, antialias: false });
+  // render each sub-sample into its own pass, then average them on a 2D canvas (keeps alpha exact)
+  const g = document.createElement('canvas'); g.width = g.height = N;
+  const gl = g.getContext('webgl', { alpha: true, premultipliedAlpha: false, preserveDrawingBuffer: true, antialias: false });
   const sh = (t, s) => { const o = gl.createShader(t); gl.shaderSource(o, s); gl.compileShader(o);
     if (!gl.getShaderParameter(o, gl.COMPILE_STATUS)) throw new Error(gl.getShaderInfoLog(o)); return o; };
   const pr = gl.createProgram();
@@ -240,13 +222,32 @@ for (const sc of scenes) {
   const loc = gl.getAttribLocation(pr, 'p'); gl.enableVertexAttribArray(loc); gl.vertexAttribPointer(loc, 2, gl.FLOAT, false, 0, 0);
   gl.uniform2f(gl.getUniformLocation(pr, 'R'), N, N);
   gl.uniform1i(gl.getUniformLocation(pr, 'SCENE'), sc);
-  gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
-  // render in horizontal strips so slow GPUs don't time out
-  gl.enable(gl.SCISSOR_TEST);
-  let y = 0; const step = 64;
-  const strip = () => { gl.scissor(0, y, N, step); gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4); gl.finish(); y += step;
-    if (y < N) setTimeout(strip, 0); else window.DONE++; };
-  strip();
+  const uT = gl.getUniformLocation(pr, 'TILE');
+  const acc = new Float32Array(N * N * 4), px = new Uint8Array(N * N * 4);
+  const out = document.createElement('canvas'); out.width = out.height = N; out.id = 'c' + sc;
+  if (bare) out.style.width = out.style.height = N + 'px';
+  document.getElementById('row').appendChild(out);
+  let k = 0; const tot = SS * SS;
+  const pass = () => {
+    const ox = ((k % SS) + .5) / SS - .5, oy = (Math.floor(k / SS) + .5) / SS - .5;
+    gl.uniform2f(uT, ox, oy);
+    gl.clearColor(0, 0, 0, 0); gl.clear(gl.COLOR_BUFFER_BIT);
+    gl.drawArrays(gl.TRIANGLE_STRIP, 0, 4);
+    gl.readPixels(0, 0, N, N, gl.RGBA, gl.UNSIGNED_BYTE, px);
+    for (let i = 0; i < px.length; i += 4) {                    // accumulate premultiplied
+      const a = px[i + 3] / 255;
+      acc[i] += px[i] * a; acc[i + 1] += px[i + 1] * a; acc[i + 2] += px[i + 2] * a; acc[i + 3] += a;
+    }
+    if (++k < tot) return setTimeout(pass, 0);
+    const ctx = out.getContext('2d'); const img = ctx.createImageData(N, N);
+    for (let y = 0; y < N; y++) for (let x = 0; x < N; x++) {   // flip y, un-premultiply
+      const s = ((N - 1 - y) * N + x) * 4, d = (y * N + x) * 4, a = acc[s + 3];
+      if (a > 0) { img.data[d] = acc[s] / a; img.data[d + 1] = acc[s + 1] / a; img.data[d + 2] = acc[s + 2] / a; }
+      img.data[d + 3] = Math.round(a / tot * 255);
+    }
+    ctx.putImageData(img, 0, 0); window.DONE++;
+  };
+  pass();
 }
 </script>
 </body>

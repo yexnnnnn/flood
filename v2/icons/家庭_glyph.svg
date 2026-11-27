@@ -1,0 +1,10 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="96" height="96" viewBox="0 0 96 96" fill="none">
+  <g id="家庭" fill="#000">
+    <circle id="成人头-左" cx="29" cy="32" r="9"/>
+    <path id="成人身-左" d="M18,57 a11,11 0 0 1 22,0 V80 a3,3 0 0 1 -3,3 H21 a3,3 0 0 1 -3,-3 Z"/>
+    <circle id="成人头-右" cx="67" cy="32" r="9"/>
+    <path id="成人身-右" d="M56,57 a11,11 0 0 1 22,0 V80 a3,3 0 0 1 -3,3 H59 a3,3 0 0 1 -3,-3 Z"/>
+    <circle id="小孩头" cx="48" cy="51" r="6.5"/>
+    <path id="小孩身" d="M42,66 a6,6 0 0 1 12,0 V80 a3,3 0 0 1 -3,3 H45 a3,3 0 0 1 -3,-3 Z"/>
+  </g>
+</svg>

@@ -7,7 +7,7 @@ R = json.load(open(os.path.join(HERE, 'route_data.json')))
 G = json.load(open(os.path.join(ROOT, 'shenjia_an_4km_osm.geojson'), encoding='utf-8'))
 S = R['shelters']; SC = S['school']
 
-W, H = 390, 1572
+W, H = 390, 1236
 BLUE, BLUE2 = '#0B2E9E', '#0A2685'
 LIME, ORANGE = '#DDF59A', '#FF7A45'
 SERIF = "'Roboto Slab', 'Zilla Slab', Georgia, serif"
@@ -100,23 +100,12 @@ def sheet():
     o = [f'<g id="内容">', f'<rect x="0" y="270" width="{W}" height="{H-270}" rx="30" fill="url(#sheetFill)"/>']
     # ---- title
     o += ['<g id="标题">', T(24, 316, '集贤小学', 30, 600, family=SERIF, id_='名称'),
-          T(24, 340, 'Jixian Primary School · 沈家庵村', 13, op=.72)]
+          T(24, 340, f'Jixian Primary School · {round(SC["t0.6"])} min · {SC["dist"]/1000:.1f} km · 0 steps', 13, op=.72)]
     p1, w1 = pill(24, 356, 'Recommended', LIME)
     p2, _ = pill(24 + w1 + 8, 356, 'Opening hours: confirm', None, color='#FFFFFF')
     o += [p1, p2, '</g>']
-    # ---- key numbers
-    t6, t5 = round(SC['t0.6']), round(SC['t0.5'])
-    tiles = [(f'{t6}', 'min', f'in rain {t5}'), (f'{SC["dist"]/1000:.1f}', 'km', f'{round(SC["up"])} m climb'), ('0', 'steps', 'stick-friendly')]
-    tw = (W - 48 - 16) / 3
-    o.append('<g id="关键数字">')
-    for i, (n, u, sub) in enumerate(tiles):
-        x = 24 + i * (tw + 8)
-        o += [glass(round(x, 1), 400, round(tw, 1), 92, .14),
-              T(x + 14, 446, n, 30, 500), T(x + 14 + len(n) * 17.5 + 4, 446, u, 12, 500, op=.8),
-              T(x + 14, 474, sub, 11, op=.65)]
-    o.append('</g>')
     # ---- why here: distance-from-river bars
-    y0 = 512
+    y0 = 400
     o += ['<g id="为什么选这里">', glass(24, y0, W - 48, 222), T(44, y0 + 34, 'Why here', 18, 500, family=SERIF),
           T(44, y0 + 54, 'Distance from the Juma River · height vs. your home', 11, op=.6)]
     rows = [('集贤小学', SC, True), ('沈家庵防火站', S['fire'], False), ('村中心 · 村委会', S['village'], False)]
@@ -135,7 +124,7 @@ def sheet():
               T(W - 44, y + 26, dzs + ' vs home', 9.5, fill=ORANGE if dz < -3 else '#FFFFFF', op=1 if dz < -3 else .55, anchor='end')]
     o += [T(44, y0 + 204, f'Farthest from the river. Home is only {round(R["home_river"])} m away.', 11, op=.7), '</g>']
     # ---- elevation profile
-    y0 = 754
+    y0 = 642
     o += ['<g id="路线剖面">', glass(24, y0, W - 48, 222), T(44, y0 + 34, 'Route profile', 18, 500, family=SERIF)]
     prof = SC['profile']; D = SC['dist']
     zmin, zmax = 112, 142
@@ -162,18 +151,8 @@ def sheet():
     o += [f'<rect x="44" y="{y0+196-15}" width="{pw}" height="26" rx="13" fill="{ORANGE}" fill-opacity=".16"/>',
           T(W / 2, y0 + 199, f'Lowest point: {round(hz-le)} m below home. Pass it early.', 11, 600, fill='#FFD2BF', anchor='middle'),
           '</g>']
-    # ---- for you
-    y0 = 996
-    items = [('✓', 'No stairs on the route', '#FFFFFF'), ('✓', f'Gentle climb: {round(SC["up"])} m in total', '#FFFFFF'),
-             ('✓', "Doesn't cross the river", '#FFFFFF'), ('!', 'Needs a companion: YZ, 〔x〕 min away', ORANGE)]
-    o += ['<g id="适合你">', glass(24, y0, W - 48, 186), T(44, y0 + 34, 'For you', 18, 500, family=SERIF)]
-    for i, (mk, txt, c) in enumerate(items):
-        y = y0 + 68 + i * 30
-        o += [f'<circle cx="54" cy="{y-4}" r="10" fill="{LIME if mk == "✓" else ORANGE}" fill-opacity="{1 if mk == "✓" else .9}"/>',
-              T(54, y, mk, 11, 700, fill=BLUE if mk == '✓' else '#FFFFFF', anchor='middle'), T(74, y, txt, 13, op=.92)]
-    o.append('</g>')
     # ---- at the shelter (unconfirmed)
-    y0 = 1202
+    y0 = 884
     o += ['<g id="避难点设施">', glass(24, y0, W - 48, 222), T(44, y0 + 34, 'At the shelter', 18, 500, family=SERIF)]
     for i, k in enumerate(['Capacity', 'Toilets · water', 'Beds · blankets', 'Step-free entrance']):
         y = y0 + 68 + i * 30
@@ -181,15 +160,7 @@ def sheet():
         o += [T(44, y, k, 13, op=.9), p.replace('fill-opacity="1"', '')]
     o += [f'<rect x="44" y="{y0+178}" width="{W-88}" height="30" rx="15" fill="#FFFFFF" fill-opacity=".14"/>',
           T(W / 2, y0 + 198, 'Ask the village committee  →', 12, 600, anchor='middle'), '</g>']
-    # ---- contact
-    y0 = 1444
-    bw = (W - 48 - 10) / 2
-    o += ['<g id="联系">',
-          f'<rect x="24" y="{y0}" width="{f1(bw)}" height="44" rx="22" fill="#FFFFFF" fill-opacity=".14"/>',
-          T(24 + bw / 2, y0 + 27, 'Call village committee', 12, 600, anchor='middle'),
-          f'<rect x="{f1(34+bw)}" y="{y0}" width="{f1(bw)}" height="44" rx="22" fill="#FFFFFF" fill-opacity=".14"/>',
-          T(34 + bw * 1.5, y0 + 27, 'Share route with YZ', 12, 600, anchor='middle'), '</g>']
-    o += ['<g id="数据来源">', T(W / 2, y0 + 72, 'Route: OpenStreetMap · Elevation: Copernicus 30 m DEM · Times at 0.6 m/s', 9, op=.45, anchor='middle'), '</g>']
+    o += ['<g id="数据来源">', T(W / 2, 1132, 'Route: OpenStreetMap · Elevation: Copernicus 30 m DEM · Times at 0.6 m/s', 9, op=.45, anchor='middle'), '</g>']
     o.append('</g>')
     return o
 
@@ -207,7 +178,7 @@ DEFS = f'''<defs>
 <clipPath id="mapClip"><rect width="{W}" height="300"/></clipPath>
 <linearGradient id="sheetFill" x1="0" y1="270" x2="0" y2="{H}" gradientUnits="userSpaceOnUse">
   <stop offset="0" stop-color="{BLUE}"/><stop offset=".55" stop-color="{BLUE2}"/><stop offset="1" stop-color="#071E6B"/></linearGradient>
-<linearGradient id="profFill" x1="0" y1="818" x2="0" y2="914" gradientUnits="userSpaceOnUse">
+<linearGradient id="profFill" x1="0" y1="0" x2="0" y2="1">
   <stop offset="0" stop-color="#9BFFD9" stop-opacity=".35"/><stop offset="1" stop-color="#9BFFD9" stop-opacity="0"/></linearGradient>
 <linearGradient id="ctaFade" x1="0" y1="{H-96}" x2="0" y2="{H}" gradientUnits="userSpaceOnUse">
   <stop offset="0" stop-color="#071E6B" stop-opacity="0"/><stop offset=".45" stop-color="#071E6B"/></linearGradient>
